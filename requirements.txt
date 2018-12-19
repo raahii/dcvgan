@@ -1,0 +1,9 @@
+numpy
+scipy
+joblib
+tqdm
+
+pillow-simd
+scikit-video
+
+face_recognition
