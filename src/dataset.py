@@ -13,13 +13,16 @@ import utils
 import dataio
 
 class VideoDataset(Dataset):
-    def __init__(self, dataset_path, preprocess_func, video_length=16, mode="train"):
+    def __init__(self, dataset_path, preprocess_func, video_length=16, image_size=64, \
+                       mode="train"):
+        # TODO: currently, mode only support 'train'
+
         root_path = dataset_path / 'preprocessed' / mode
         if not root_path.exists():
             print('>> Preprocessing ... (->{})'.format(root_path))
             root_path.mkdir(parents=True, exist_ok=True)
             try:
-                preprocess_func(dataset_path, root_path, video_length)
+                preprocess_func(dataset_path, root_path, video_length, image_size)
             except Exception as e:
                 shutil.rmtree(str(root_path))
                 raise e
@@ -73,7 +76,7 @@ class VideoDataset(Dataset):
         
         return rgbd_video
 
-def preprocess_isogd_dataset(dataset_path, save_path, length, n_jobs=-1):
+def preprocess_isogd_dataset(dataset_path, save_path, length, img_size, n_jobs=-1):
     # read samples in 'train'
     with open(dataset_path/"train_list.txt") as f:
         rows = f.readlines()
@@ -111,8 +114,8 @@ def preprocess_isogd_dataset(dataset_path, save_path, length, n_jobs=-1):
         depth_video = depth_video[:, :, left_x:left_x+H]
 
         # resize
-        color_video = [imresize(img, (64, 64)) for img in color_video]
-        depth_video = [imresize(img, (64, 64)) for img in depth_video]
+        color_video = [imresize(img, (img_size, img_size)) for img in color_video]
+        depth_video = [imresize(img, (img_size, img_size)) for img in depth_video]
         color_video, depth_video = np.stack(color_video), np.stack(depth_video)
         depth_video = depth_video[...,0] # save as grayscale image
 

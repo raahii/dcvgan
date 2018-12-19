@@ -2,6 +2,7 @@ numpy
 scipy
 joblib
 tqdm
+pyyaml
 
 pillow-simd
 scikit-video
