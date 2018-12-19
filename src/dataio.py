@@ -61,22 +61,3 @@ def write_video(video_tensor, path):
     for frame in video:
         writer.writeFrame(frame)
     writer.close()
-
-class SerializableFileObject(object):
-    def __init__(self, f):
-        self.file = f
-        self.filename = f.name
-        self.mode = f.mode
-    
-    def exec(self, func_name, *args):
-        eval("self.file." + func_name)(*args)
-        
-    def __getstate__(self):
-        self.f.close()
-        state = self.__dict__.copy()
-        del state['file']
-        return state
-
-    def __setstate__(self, state):
-        self.__dict__.update(state)
-        self.file = open(self.filename, mode=self.mode)
