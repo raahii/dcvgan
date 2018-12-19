@@ -1,0 +1,37 @@
+# experiment configs
+experiment_name: "default"
+
+# basic configs
+batchsize: 20
+iteration: 50000
+seed: 0
+video_length: 16
+image_size: 64
+result_path: "result/isogd"
+tensorboard_path: "result/isogd/runs"
+
+display_interval: 100
+progressbar_interval: 100
+snapshot_interval: 10000
+evaluation_interval: 1000
+
+# dataset configs
+dataset: 
+  name: "isogd"
+  path: "data/isogd"
+  n_workers: 2
+
+# model configs
+gen:
+  n_channels: 1
+  dim_z_content: 40
+  dim_z_motion: 10
+
+# TODO: noise sigma schedule
+idis: 
+  use_noise: True
+  noise_sigma: 0.1
+
+vdis: 
+  use_noise: True
+  noise_sigma: 0.1
