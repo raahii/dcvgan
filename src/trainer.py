@@ -8,7 +8,7 @@ from torch import nn
 from torch.autograd import Variable
 import torch.optim as optim
 
-# from logger import Logger
+from logger import Logger
 
 class Trainer(object):
     def __init__(self, dataloader, configs):
@@ -19,14 +19,15 @@ class Trainer(object):
 
         self.dataloader = dataloader
         self.data_enumerater = enumerate(dataloader)
+        
+        self.log_dir = Path(configs["log_dir"]) / configs["experiment_name"]
+        self.tensorboard_dir = Path(configs["tensorboard_dir"]) / configs["experiment_name"]
+        self.logger = Logger(dataloader, configs)
 
-        self.log_folder = Path(configs["result_path"]) / configs["experiment_name"]
-
-        self.display_interval     = configs["display_interval"]
         self.evaluation_interval  = configs["evaluation_interval"]
         self.log_samples_interval = configs["log_samples_interval"]
 
-        self.gan_criterion = nn.BCEWithLogitsLoss()
+        self.gan_criterion = nn.BCEWithLogitsLoss(reduction='sum')
         self.use_cuda = torch.cuda.is_available()
         self.device = self.use_cuda and torch.device('cuda') or torch.device('cpu')
         self.configs = configs
@@ -49,15 +50,12 @@ class Trainer(object):
                 weight_decay=decay,
                 )
 
-    def init_logs(self):
-        return 
-
     def compute_dis_loss(self, y_real, y_fake):
         ones = torch.ones_like(y_real, device=self.device)
         zeros = torch.zeros_like(y_fake, device=self.device)
 
-        loss = self.gan_criterion(y_real, ones) + \
-                  self.gan_criterion(y_fake, zeros)
+        loss  = self.gan_criterion(y_real, ones)  / y_real.numel()
+        loss += self.gan_criterion(y_fake, zeros) / y_fake.numel()
 
         return loss
 
@@ -65,8 +63,8 @@ class Trainer(object):
         ones_i = torch.ones_like(y_fake_i, device=self.device)
         ones_v = torch.ones_like(y_fake_v, device=self.device)
 
-        loss = self.gan_criterion(y_fake_i, ones_i) + \
-                self.gan_criterion(y_fake_v, ones_v)
+        loss  = self.gan_criterion(y_fake_i, ones_i) / y_fake_i.numel()
+        loss += self.gan_criterion(y_fake_v, ones_v) / y_fake_v.numel()
 
         return loss
 
@@ -76,27 +74,20 @@ class Trainer(object):
             idis.cuda()
             vdis.cuda()
         
-        # logger = Logger(self.log_folder)
-        configs = self.configs
-
         # create optimizers
+        configs = self.configs
         opt_gen  = self.create_optimizer(gen,  **configs["gen"]["optimizer"])
         opt_idis = self.create_optimizer(idis, **configs["idis"]["optimizer"])
         opt_vdis = self.create_optimizer(vdis, **configs["vdis"]["optimizer"])
 
         # training loop
-        iteration = 0
-        logs = {'loss_gen': 0, 'loss_idis': 0, 'loss_vdis': 0}
-        start_time = time.time()
-
+        logger = self.logger
         while True:
-            gen.train();  opt_gen.zero_grad()
-            idis.train(); opt_idis.zero_grad()
-            vdis.train(); opt_vdis.zero_grad()
-
             #--------------------
             # phase generator
             #--------------------
+
+            gen.train();  opt_gen.zero_grad()
 
             # fake batch
             x_fake = gen.sample_videos(self.batchsize).float()
@@ -116,8 +107,11 @@ class Trainer(object):
             # phase discriminator
             #--------------------
             
+            idis.train(); opt_idis.zero_grad()
+            vdis.train(); opt_vdis.zero_grad()
+
             # real batch
-            x_real = Variable(self.sample_real_batch(), requires_grad=False)
+            x_real = Variable(self.sample_real_batch())
 
             y_real_i = idis(x_real[:,:,t_rand])
             y_real_v = vdis(x_real)
@@ -137,41 +131,25 @@ class Trainer(object):
             # logging
             #--------------------
             
-            logs['loss_gen']  += loss_gen.cpu().item()
-            logs['loss_idis'] += loss_idis.cpu().item()
-            logs['loss_vdis'] += loss_vdis.cpu().item()
+            logger.update("loss_gen",  loss_gen.cpu().item())
+            logger.update("loss_idis", loss_idis.cpu().item())
+            logger.update("loss_vdis", loss_vdis.cpu().item())
+            logger.next_iter()
 
-            iteration += 1
-
-            # # logging
-            # for tag, value in logs.items():
-            #     logger.scalar_summary(tag, value, iteration)
-            
-            # display
-            if iteration % self.display_interval == 0:
-                log_string = "Batch {}".format(iteration)
-                for k, v in logs.items():
-                    log_string += " [{}] {:5.3f}".format(k, v / self.display_interval)
-                log_string += ". Took {:5.2f}".format(time.time() - start_time)
-                print(log_string)
-
-                logs = {'loss_gen': 0, 'loss_idis': 0, 'loss_vdis': 0}
-                start_time = time.time()
-            
-            # # generate samples
-            # if iteration % log_samples_interval == 0:
-            #     generator.eval()
+            # # # generate samples
+            # # if iteration % log_samples_interval == 0:
+            # #     generator.eval()
+            # #
+            # #     images, _ = sample_fake_image_batch(self.image_batch_size)
+            # #     logger.image_summary("Images", images_to_numpy(images), iteration)
+            # #
+            # #     videos, _ = sample_fake_video_batch(self.video_batch_size)
+            # #     logger.video_summary("Videos", videos_to_numpy(videos), iteration)
+            # #
+            # # # evaluate generator samples
+            # # if iteration % self.evaluation_interval == 0:
+            # #    pass
             #
-            #     images, _ = sample_fake_image_batch(self.image_batch_size)
-            #     logger.image_summary("Images", images_to_numpy(images), iteration)
-            #
-            #     videos, _ = sample_fake_video_batch(self.video_batch_size)
-            #     logger.video_summary("Videos", videos_to_numpy(videos), iteration)
-            #
-            # # evaluate generator samples
-            # if iteration % self.evaluation_interval == 0:
-            #    pass
-            
-            if iteration >= self.max_iteration:
-                torch.save(generator, str(self.log_folder/'gen_{:05d}.pytorch'.format(iteration)))
-                break
+            # if iteration >= self.max_iteration:
+            #     torch.save(generator, str(self.log_folder/'gen_{:05d}.pytorch'.format(iteration)))
+            #     break

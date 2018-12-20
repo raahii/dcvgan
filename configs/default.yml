@@ -10,12 +10,11 @@ n_channels: 1
 video_length: 16
 image_size: 64
 
-result_path: "result/isogd"
-tensorboard_path: "result/isogd/runs"
+log_dir: "result/isogd"
+tensorboard_dir: "result/isogd/runs"
 
 # interval
-display_interval: 1
-progressbar_interval: 100
+log_interval: 20
 snapshot_interval: 10000
 evaluation_interval: 1000
 log_samples_interval: 1000

@@ -7,7 +7,8 @@ class Logger(object):
         self.metrics ={
             "epoch": 0,
             "iteration": 1,
-            "loss_gen": 0., "loss_idis": 0.,
+            "loss_gen": 0.,
+            "loss_idis": 0.,
             "loss_vdis": 0.,
             "elapsed_time": 0,
         }
@@ -19,9 +20,8 @@ class Logger(object):
 
         self.display_metric_names()
 
-    def update(self, new_metrics):
-        for k, v in new_metrics.items():
-            self.metrics[k] = v
+    def update(self, name, value):
+        self.metrics[name] = value
 
     def display_metric_names(self):
         for name in self.metrics.keys():
@@ -48,7 +48,7 @@ class Logger(object):
         for s in metric_strings:
             print("{:>12} ".format(s), end="")
         print("")
-    
+
     def next_iter(self):
         # hook
         if self.metrics["iteration"] % self.log_interval == 0:
