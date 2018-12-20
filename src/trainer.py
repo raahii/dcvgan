@@ -10,31 +10,6 @@ import torch.optim as optim
 
 # from logger import Logger
 
-if torch.cuda.is_available():
-    array_module = torch.cuda
-else:
-    array_module = torch
-
-def images_to_numpy(tensor):
-    imgs = tensor.data.cpu().numpy()
-    imgs = imgs.transpose(0, 2, 3, 1) # (B, C, H, W) -> (B, H, W, C)
-    imgs = np.clip(imgs, -1, 1)
-    imgs = (imgs + 1) / 2 * 255
-    imgs = imgs.astype('uint8')
-
-    return imgs
-
-def videos_to_numpy(tensor):
-    videos = tensor.data.cpu().numpy()
-    import pdb; pdb.set_trace()
-    videos = videos.transpose(0, 1, 2, 3, 4)
-    videos = np.clip(videos, -1, 1)
-    videos = (videos + 1) / 2 * 255
-    videos = videos.astype('uint8')
-
-    return videos
-
-
 class Trainer(object):
     def __init__(self, dataloader, configs):
 
@@ -53,6 +28,7 @@ class Trainer(object):
 
         self.gan_criterion = nn.BCEWithLogitsLoss()
         self.use_cuda = torch.cuda.is_available()
+        self.device = self.use_cuda and torch.device('cuda') or torch.device('cpu')
         self.configs = configs
 
     def sample_real_batch(self):
@@ -77,8 +53,8 @@ class Trainer(object):
         return 
 
     def compute_dis_loss(self, y_real, y_fake):
-        ones = array_module.ones_like(y_real)
-        zeros = array_module.zeros_like(y_fake)
+        ones = torch.ones_like(y_real, device=self.device)
+        zeros = torch.zeros_like(y_fake, device=self.device)
 
         loss = self.gan_criterion(y_real, ones) + \
                   self.gan_criterion(y_fake, zeros)
@@ -86,8 +62,8 @@ class Trainer(object):
         return loss
 
     def compute_gen_loss(self, y_fake_i, y_fake_v):
-        ones_i = array_module.ones_like(y_fake_i)
-        ones_v = array_module.ones_like(y_fake_v)
+        ones_i = torch.ones_like(y_fake_i, device=self.device)
+        ones_v = torch.ones_like(y_fake_v, device=self.device)
 
         loss = self.gan_criterion(y_fake_i, ones_i) + \
                 self.gan_criterion(y_fake_v, ones_v)
@@ -165,3 +141,37 @@ class Trainer(object):
             logs['loss_idis'] += loss_idis.cpu().item()
             logs['loss_vdis'] += loss_vdis.cpu().item()
 
+            iteration += 1
+
+            # # logging
+            # for tag, value in logs.items():
+            #     logger.scalar_summary(tag, value, iteration)
+            
+            # display
+            if iteration % self.display_interval == 0:
+                log_string = "Batch {}".format(iteration)
+                for k, v in logs.items():
+                    log_string += " [{}] {:5.3f}".format(k, v / self.display_interval)
+                log_string += ". Took {:5.2f}".format(time.time() - start_time)
+                print(log_string)
+
+                logs = {'loss_gen': 0, 'loss_idis': 0, 'loss_vdis': 0}
+                start_time = time.time()
+            
+            # # generate samples
+            # if iteration % log_samples_interval == 0:
+            #     generator.eval()
+            #
+            #     images, _ = sample_fake_image_batch(self.image_batch_size)
+            #     logger.image_summary("Images", images_to_numpy(images), iteration)
+            #
+            #     videos, _ = sample_fake_video_batch(self.video_batch_size)
+            #     logger.video_summary("Videos", videos_to_numpy(videos), iteration)
+            #
+            # # evaluate generator samples
+            # if iteration % self.evaluation_interval == 0:
+            #    pass
+            
+            if iteration >= self.max_iteration:
+                torch.save(generator, str(self.log_folder/'gen_{:05d}.pytorch'.format(iteration)))
+                break
