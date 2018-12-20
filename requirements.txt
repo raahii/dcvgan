@@ -5,6 +5,7 @@ tqdm
 pyyaml
 
 pillow-simd
+opencv-python
 scikit-video
 tensorboardX
 

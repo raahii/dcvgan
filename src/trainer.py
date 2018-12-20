@@ -9,6 +9,7 @@ from torch.autograd import Variable
 import torch.optim as optim
 
 from logger import Logger
+import utils
 
 class Trainer(object):
     def __init__(self, dataloader, configs):
@@ -18,11 +19,16 @@ class Trainer(object):
         self.video_length = configs["video_length"]
 
         self.dataloader = dataloader
-        self.data_enumerater = enumerate(dataloader)
+        self.dataiter = iter(dataloader)
         
         self.log_dir = Path(configs["log_dir"]) / configs["experiment_name"]
+        self.log_dir.mkdir(parents=True, exist_ok=True)
+
         self.tensorboard_dir = Path(configs["tensorboard_dir"]) / configs["experiment_name"]
-        self.logger = Logger(dataloader, configs)
+        self.tensorboard_dir.mkdir(parents=True, exist_ok=True)
+
+        self.logger = Logger(self.log_dir, self.tensorboard_dir,\
+                             configs["log_interval"], len(dataloader))
 
         self.evaluation_interval  = configs["evaluation_interval"]
         self.log_samples_interval = configs["log_samples_interval"]
@@ -33,12 +39,14 @@ class Trainer(object):
         self.configs = configs
 
     def sample_real_batch(self):
-        batch_idx, batch = next(self.data_enumerater)
+        try:
+            batch = next(self.dataiter)
+        except StopIteration:
+            self.data_iter = iter(self.dataloader)
+            batch = next(self.dataiter) 
+
         if self.use_cuda:
             batch = batch.cuda()
-
-        if batch_idx == len(self.dataloader) - 1:
-            self.data_enumerator = enumerate(self.dataloader)
 
         return batch.float()
 
@@ -91,7 +99,6 @@ class Trainer(object):
 
             # fake batch
             x_fake = gen.sample_videos(self.batchsize).float()
-
             t_rand = np.random.randint(self.video_length)
             y_fake_i = idis(x_fake[:,:,t_rand])
             y_fake_v = vdis(x_fake)
@@ -130,26 +137,35 @@ class Trainer(object):
             #--------------------
             # logging
             #--------------------
-            
             logger.update("loss_gen",  loss_gen.cpu().item())
             logger.update("loss_idis", loss_idis.cpu().item())
             logger.update("loss_vdis", loss_vdis.cpu().item())
-            logger.next_iter()
 
-            # # # generate samples
-            # # if iteration % log_samples_interval == 0:
-            # #     generator.eval()
-            # #
-            # #     images, _ = sample_fake_image_batch(self.image_batch_size)
-            # #     logger.image_summary("Images", images_to_numpy(images), iteration)
-            # #
-            # #     videos, _ = sample_fake_video_batch(self.video_batch_size)
-            # #     logger.video_summary("Videos", videos_to_numpy(videos), iteration)
-            # #
-            # # # evaluate generator samples
-            # # if iteration % self.evaluation_interval == 0:
-            # #    pass
-            #
-            # if iteration >= self.max_iteration:
-            #     torch.save(generator, str(self.log_folder/'gen_{:05d}.pytorch'.format(iteration)))
-            #     break
+            iteration = self.logger.metrics["iteration"]
+
+            # snapshot models
+            if iteration % configs["snapshot_interval"] == 0:
+                torch.save( gen, str(self.log_dir/'gen_{:05d}.pytorch'.format(iteration)))
+                torch.save(idis, str(self.log_dir/'idis{:05d}.pytorch'.format(iteration)))
+                torch.save(vdis, str(self.log_dir/'vdis{:05d}.pytorch'.format(iteration)))
+
+            # log generator samples
+            if iteration % configs["log_samples_interval"] == 0:
+                gen.eval()
+                num, rows, cols = 36, 6, 6
+                videos = gen.sample_videos(num).float()
+                videos = utils.videos_to_numpy(videos) #(B, C, T, H, W)
+                grid_video = utils.make_video_grid(videos, rows, cols) #(1, C, T, H*rows, W*cols)
+                logger.log_video("random_samples", grid_video, iteration)
+            
+            # evaluate generated samples
+            # if iteration % configs["evaluation_interval"] == 0:
+            #    pass
+            
+            if iteration >= self.max_iteration:
+                torch.save( gen, str(self.log_dir/'gen_{:05d}.pytorch'.format(iteration)))
+                torch.save(idis, str(self.log_dir/'idis{:05d}.pytorch'.format(iteration)))
+                torch.save(vdis, str(self.log_dir/'vdis{:05d}.pytorch'.format(iteration)))
+                break
+
+            logger.next_iter()

@@ -1,9 +1,11 @@
 import time
-import numpy as np
+from pathlib import Path
+
 from tensorboardX import SummaryWriter
 
 class Logger(object):
-    def __init__(self, dataloader, configs):
+    def __init__(self, log_folder, tensorboard_dir, \
+                       log_interval, epoch_iters):
         self.metrics ={
             "epoch": 0,
             "iteration": 1,
@@ -13,11 +15,12 @@ class Logger(object):
             "elapsed_time": 0,
         }
         
+        self.log_interval = log_interval
+        self.epoch_iters = epoch_iters
+        
+        self.writer = SummaryWriter(str(tensorboard_dir))
+        
         self.start_time = time.time()
-        self.epoch_iters = len(dataloader)
-        # self.writer = SummaryWriter(tensorboard_dir)
-        self.log_interval = configs["log_interval"]
-
         self.display_metric_names()
 
     def update(self, name, value):
@@ -49,10 +52,20 @@ class Logger(object):
             print("{:>12} ".format(s), end="")
         print("")
 
+    def log_tensorboard(self):
+        step = self.metrics["iteration"]
+        for name in ["loss_gen", "loss_idis", "loss_vdis"]:
+            value = self.metrics[name]
+            self.writer.add_scalar(name, value, step)
+
+    def log_video(self, name, videos, step):
+        self.writer.add_video(name, videos, fps=8, global_step=step)
+
     def next_iter(self):
         # hook
         if self.metrics["iteration"] % self.log_interval == 0:
             self.log_metrics()
+            self.log_tensorboard()
         
         # update iteration
         self.metrics['iteration'] += 1
