@@ -1,6 +1,7 @@
 .python-version
 __pycache__
-data
-notebooks
 deploy.sh
+
+data/*
+notebooks/*
 !.gitkeep
