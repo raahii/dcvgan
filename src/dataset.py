@@ -68,7 +68,7 @@ class VideoDataset(Dataset):
         placeholder = str(depth_path / "{:03d}.jpg")
         depth_video = [dataio.read_img(placeholder.format(i)) for i in frames_to_read] 
         depth_video = np.stack(depth_video)
-        depth_video = depth_video[...,None]
+        depth_video = depth_video[...,0:1]
 
         # rgbd_video = np.concatenate([color_video, depth_video], axis=3)
         # rgbd_video = rgbd_video.transpose(3,0,1,2) # change to channel first

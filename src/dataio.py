@@ -1,9 +1,10 @@
 import numpy as np
+import cv2
 from PIL import Image
 import skvideo.io
 
 def read_img(path):
-    return np.asarray(Image.open(str(path)))
+    return cv2.imread(str(path))[:,:,::-1]
 
 def write_img(img, path):
     Image.fromarray(img).save(str(path))
