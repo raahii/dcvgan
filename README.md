@@ -3,7 +3,11 @@ Depth Conditional Video Generation
 
 A pytorch implemention of depth condtional video generation.
 
+### TODO:
 
+- [ ] implement logging to the file, dump config file
+- [ ] implement evaluation script, evaluation training hook
+- [ ] reproduce result
 
 ### Getting Started
 
