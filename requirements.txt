@@ -6,5 +6,6 @@ pyyaml
 
 pillow-simd
 scikit-video
+tensorboardX
 
 face_recognition
