@@ -10,6 +10,8 @@ from dataset import preprocess_isogd_dataset
 
 from models import VideoGenerator, ImageDiscriminator, VideoDiscriminator
 
+from trainer import Trainer
+
 def prepare_dataset(configs):
     if configs["dataset"]["name"] not in ["isogd"]:
         raise NotImplemented
@@ -54,17 +56,19 @@ def main():
             configs["n_channels"],
             configs["idis"]["use_noise"],
             configs["idis"]["noise_sigma"],
+            configs["vdis"]["ndf"],
             )
 
-    idis = VideoDiscriminator(
+    vdis = VideoDiscriminator(
             configs["n_channels"],
             configs["vdis"]["use_noise"],
             configs["vdis"]["noise_sigma"],
+            configs["vdis"]["ndf"],
             )
      
-    # # start training
-    # trainer = Trainer(dataloader, configs)
-    # trainer.train(gen, idis, vdis)
+    # start training
+    trainer = Trainer(dataloader, configs)
+    trainer.train(gen, idis, vdis)
 
 if __name__ == "__main__":
     main()
