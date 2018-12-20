@@ -1,5 +1,6 @@
 .python-version
 __pycache__
+data
 notebooks
-!.gitkeep
 deploy.sh
+!.gitkeep
