@@ -15,11 +15,11 @@ class Trainer(object):
     def __init__(self, dataloader, configs):
 
         self.batchsize = configs["batchsize"]
+        self.epoch_iters = len(dataloader)
         self.max_iteration = configs["iterations"]
         self.video_length = configs["video_length"]
 
         self.dataloader = dataloader
-        self.dataiter = iter(dataloader)
         
         self.log_dir = Path(configs["log_dir"]) / configs["experiment_name"]
         self.log_dir.mkdir(parents=True, exist_ok=True)
@@ -28,7 +28,7 @@ class Trainer(object):
         self.tensorboard_dir.mkdir(parents=True, exist_ok=True)
 
         self.logger = Logger(self.log_dir, self.tensorboard_dir,\
-                             configs["log_interval"], len(dataloader))
+                             configs["log_interval"], self.epoch_iters)
 
         self.evaluation_interval  = configs["evaluation_interval"]
         self.log_samples_interval = configs["log_samples_interval"]
@@ -37,18 +37,6 @@ class Trainer(object):
         self.use_cuda = torch.cuda.is_available()
         self.device = self.use_cuda and torch.device('cuda') or torch.device('cpu')
         self.configs = configs
-
-    def sample_real_batch(self):
-        try:
-            batch = next(self.dataiter)
-        except StopIteration:
-            self.data_iter = iter(self.dataloader)
-            batch = next(self.dataiter) 
-
-        if self.use_cuda:
-            batch = batch.cuda()
-
-        return batch.float()
 
     def create_optimizer(self, model, lr, decay):
         return optim.Adam(
@@ -90,11 +78,11 @@ class Trainer(object):
 
         # training loop
         logger = self.logger
+        dataiter = iter(self.dataloader)
         while True:
             #--------------------
             # phase generator
             #--------------------
-
             gen.train();  opt_gen.zero_grad()
 
             # fake batch
@@ -118,7 +106,9 @@ class Trainer(object):
             vdis.train(); opt_vdis.zero_grad()
 
             # real batch
-            x_real = Variable(self.sample_real_batch())
+            x_real = next(dataiter).float()
+            x_real = x_real.cuda() if self.use_cuda else x_fake
+            x_real = Variable(x_real)
 
             y_real_i = idis(x_real[:,:,t_rand])
             y_real_v = vdis(x_real)
@@ -142,6 +132,9 @@ class Trainer(object):
             logger.update("loss_vdis", loss_vdis.cpu().item())
 
             iteration = self.logger.metrics["iteration"]
+
+            if iteration % (self.epoch_iters-1) == 0:
+                dataiter = iter(self.dataloader)
 
             # snapshot models
             if iteration % configs["snapshot_interval"] == 0:

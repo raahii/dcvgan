@@ -21,6 +21,7 @@ def prepare_dataset(configs):
             eval(f'preprocess_{configs["dataset"]["name"]}_dataset'),
             configs['video_length'], 
             configs['image_size'], 
+            configs["dataset"]['number_limit'], 
             )
 
 def main():

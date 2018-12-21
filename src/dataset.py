@@ -14,7 +14,7 @@ import dataio
 
 class VideoDataset(Dataset):
     def __init__(self, dataset_path, preprocess_func, video_length=16, image_size=64, \
-                       mode="train"):
+                        number_limit=-1, mode="train"):
         # TODO: currently, mode only support 'train'
 
         root_path = dataset_path / 'preprocessed' / mode
@@ -28,16 +28,21 @@ class VideoDataset(Dataset):
                 raise e
         
         # collect video folder paths
-        video_list = []
         with open(root_path/"list.txt") as f:
-            for line in f.readlines():
-                # append [color_path, depth_path, n_frames]
-                color_path, depth_path, n_frames = line.strip().split(" ")
-                video_list.append([
-                    root_path / color_path,
-                    root_path / depth_path,
-                    int(n_frames)
-                ])
+            lines = f.readlines()
+
+        if number_limit != -1:
+            lines = lines[:number_limit]
+        
+        video_list = []
+        for line in lines:
+            # append [color_path, depth_path, n_frames]
+            color_path, depth_path, n_frames = line.strip().split(" ")
+            video_list.append([
+                root_path / color_path,
+                root_path / depth_path,
+                int(n_frames)
+            ])
         
         self.dataset_path = dataset_path
         self.root_path = root_path
