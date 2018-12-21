@@ -64,15 +64,17 @@ class Trainer(object):
 
         return loss
 
-    def train(self, gen, idis, vdis):
+    def train(self, dgen, cgen, idis, vdis):
         if self.use_cuda:
-            gen.cuda()
+            dgen.cuda()
+            cgen.cuda()
             idis.cuda()
             vdis.cuda()
         
         # create optimizers
         configs = self.configs
-        opt_gen  = self.create_optimizer(gen,  **configs["gen"]["optimizer"])
+        opt_dgen = self.create_optimizer(dgen, **configs["dgen"]["optimizer"])
+        opt_cgen = self.create_optimizer(cgen, **configs["cgen"]["optimizer"])
         opt_idis = self.create_optimizer(idis, **configs["idis"]["optimizer"])
         opt_vdis = self.create_optimizer(vdis, **configs["vdis"]["optimizer"])
 
@@ -83,10 +85,13 @@ class Trainer(object):
             #--------------------
             # phase generator
             #--------------------
-            gen.train();  opt_gen.zero_grad()
+            dgen.train();  opt_dgen.zero_grad()
+            cgen.train();  opt_cgen.zero_grad()
 
             # fake batch
-            x_fake = gen.sample_videos(self.batchsize).float()
+            d = dgen.sample_videos(self.batchsize)
+            c = cgen.forward_videos(d)
+            x_fake = torch.cat([c.float(), d.float()], 1)
             t_rand = np.random.randint(self.video_length)
             y_fake_i = idis(x_fake[:,:,t_rand])
             y_fake_v = vdis(x_fake)
@@ -95,7 +100,7 @@ class Trainer(object):
             loss_gen = self.compute_gen_loss(y_fake_i, y_fake_v)
 
             # update weights
-            loss_gen.backward(); opt_gen.step()
+            loss_gen.backward(); opt_dgen.step(); opt_cgen.step()
 
 
             #--------------------
@@ -127,7 +132,7 @@ class Trainer(object):
             #--------------------
             # logging
             #--------------------
-            logger.update("loss_gen",  loss_gen.cpu().item())
+            logger.update("loss_gen", loss_gen.cpu().item())
             logger.update("loss_idis", loss_idis.cpu().item())
             logger.update("loss_vdis", loss_vdis.cpu().item())
 
@@ -138,17 +143,27 @@ class Trainer(object):
 
             # snapshot models
             if iteration % configs["snapshot_interval"] == 0:
-                torch.save( gen, str(self.log_dir/'gen_{:05d}.pytorch'.format(iteration)))
-                torch.save(idis, str(self.log_dir/'idis{:05d}.pytorch'.format(iteration)))
-                torch.save(vdis, str(self.log_dir/'vdis{:05d}.pytorch'.format(iteration)))
+                torch.save(dgen, str(self.log_dir/'dgen_{:05d}.pytorch'.format(iteration)))
+                torch.save(cgen, str(self.log_dir/'cgen_{:05d}.pytorch'.format(iteration)))
+                torch.save(idis, str(self.log_dir/'idis_{:05d}.pytorch'.format(iteration)))
+                torch.save(vdis, str(self.log_dir/'vdis_{:05d}.pytorch'.format(iteration)))
 
             # log generator samples
             if iteration % configs["log_samples_interval"] == 0:
-                gen.eval()
+                dgen.eval(); cgen.eval()
                 num, rows, cols = 36, 6, 6
-                videos = gen.sample_videos(num).float()
-                videos = utils.videos_to_numpy(videos) #(B, C, T, H, W)
-                grid_video = utils.make_video_grid(videos, rows, cols) #(1, C, T, H*rows, W*cols)
+
+                d = dgen.sample_videos(num)
+                c = cgen.forward_videos(d)
+                d = d.repeat(1,3,1,1,1) # to have 3-channels
+                
+                d = utils.videos_to_numpy(d) #(B, C, T, H, W)
+                grid_d = utils.make_video_grid(d, rows, cols) #(1, C, T, H*rows, W*cols)
+
+                c = utils.videos_to_numpy(c)
+                grid_c = utils.make_video_grid(c, rows, cols)
+
+                grid_video = np.concatenate([grid_d, grid_c], axis=-1)
                 logger.log_video("random_samples", grid_video, iteration)
             
             # evaluate generated samples
@@ -156,9 +171,10 @@ class Trainer(object):
             #    pass
             
             if iteration >= self.max_iteration:
-                torch.save( gen, str(self.log_dir/'gen_{:05d}.pytorch'.format(iteration)))
-                torch.save(idis, str(self.log_dir/'idis{:05d}.pytorch'.format(iteration)))
-                torch.save(vdis, str(self.log_dir/'vdis{:05d}.pytorch'.format(iteration)))
+                torch.save(dgen, str(self.log_dir/'dgen_{:05d}.pytorch'.format(iteration)))
+                torch.save(cgen, str(self.log_dir/'cgen_{:05d}.pytorch'.format(iteration)))
+                torch.save(idis, str(self.log_dir/'idis_{:05d}.pytorch'.format(iteration)))
+                torch.save(vdis, str(self.log_dir/'vdis_{:05d}.pytorch'.format(iteration)))
                 break
 
             logger.next_iter()

@@ -22,10 +22,10 @@ class Noise(nn.Module):
             return x + self.sigma * Variable(T.FloatTensor(x.size()).normal_(), requires_grad=False)
         return x
 
-class VideoGenerator(nn.Module):
+class DepthVideoGenerator(nn.Module):
     def __init__(self, n_channels, dim_z_content, dim_z_category, dim_z_motion,
                  video_length, ngf=64):
-        super(VideoGenerator, self).__init__()
+        super(DepthVideoGenerator, self).__init__()
 
         self.n_channels = n_channels
         self.dim_z_content = dim_z_content
@@ -128,8 +128,6 @@ class VideoGenerator(nn.Module):
     def sample_images(self, num_samples):
         z, z_category_labels = self.sample_z_video(num_samples * self.video_length * 2)
 
-        j = np.sort(np.random.choice(z.size(0), num_samples, replace=False)).astype(np.int64)
-        z = z[j, ::]
         z = z.view(z.size(0), z.size(1), 1, 1)
         h = self.main(z)
 
@@ -140,6 +138,131 @@ class VideoGenerator(nn.Module):
 
     def get_iteration_noise(self, num_samples):
         return Variable(T.FloatTensor(num_samples, self.dim_z_motion).normal_())
+
+class Inconv(nn.Module):
+    def __init__(self, in_ch, out_ch):
+        super(Inconv, self).__init__()
+
+        self.main = nn.Sequential(
+            nn.Conv2d(in_ch, out_ch, kernel_size=3,
+                      stride=1, padding=1, bias=False),
+            nn.BatchNorm2d(out_ch),
+            nn.LeakyReLU(0.2, True),
+        )
+
+    def forward(self, x):
+        x = self.main(x)
+        return x
+
+class UpBlock(nn.Module):
+    def __init__(self, in_ch, out_ch):
+        super(UpBlock, self).__init__()
+
+        self.main = nn.Sequential(
+            nn.ConvTranspose2d(in_ch, out_ch, kernel_size=4,
+                      stride=2, padding=1, bias=False),
+            nn.BatchNorm2d(out_ch),
+            nn.LeakyReLU(0.2, True),
+        )
+
+    def forward(self, x):
+        x = self.main(x)
+        return x
+
+class Outconv(nn.Module):
+    def __init__(self, in_ch, out_ch):
+        super(Outconv, self).__init__()
+
+        self.main = nn.Sequential(
+            nn.ConvTranspose2d(in_ch, out_ch, kernel_size=3,
+                                stride=1, padding=1, bias=False),
+            nn.Tanh(),
+        )
+
+    def forward(self, x):
+        x = self.main(x)
+        return x
+
+class DownBlock(nn.Module):
+    def __init__(self, in_ch, out_ch):
+        super(DownBlock, self).__init__()
+
+        self.main = nn.Sequential(
+            nn.Conv2d(in_ch, out_ch, kernel_size=4,
+                      stride=2, padding=1, bias=False),
+            nn.BatchNorm2d(out_ch),
+            nn.LeakyReLU(0.2, True),
+        )
+
+    def forward(self, x):
+        x = self.main(x)
+        return x
+
+class ColorVideoGenerator(nn.Module):
+    n_down_blocks = 6
+    n_up_blocks = 6
+    use_cuda = torch.cuda.is_available()
+    def __init__(self, in_ch, out_ch, dim_z, ngf=64):
+        super(ColorVideoGenerator, self).__init__()
+
+        self.in_ch = in_ch
+        self.out_ch = out_ch
+        self.dim_z = dim_z
+
+        self.inconv = Inconv(in_ch, ngf*1)
+        self.down1  = DownBlock(ngf*1, ngf*1)
+        self.down2  = DownBlock(ngf*1, ngf*2)
+        self.down3  = DownBlock(ngf*2, ngf*4)
+        self.down4  = DownBlock(ngf*4, ngf*4)
+        self.down5  = DownBlock(ngf*4, ngf*4)
+        self.down6  = DownBlock(ngf*4, ngf*4)
+
+        self.up1     = UpBlock(ngf*4+dim_z, ngf*4)
+        self.up2     = UpBlock(ngf*8      , ngf*4)
+        self.up3     = UpBlock(ngf*8      , ngf*4)
+        self.up4     = UpBlock(ngf*8      , ngf*2)
+        self.up5     = UpBlock(ngf*4      , ngf*1)
+        self.up6     = UpBlock(ngf*2      , ngf*1)
+        self.outconv = Outconv(ngf*2, out_ch)
+
+    def forward(self, x):
+        # video to images
+        C, T, H, W = x.shape
+        x = x.permute(1, 0, 2, 3)
+        
+        # replicate z along time axis
+        z = np.random.normal(0, 1, (self.dim_z)).astype(np.float32)
+        z = torch.from_numpy(z)
+        z = z.unsqueeze(0).repeat(T, 1) # (T, dim_z)
+        z = z.unsqueeze(-1).unsqueeze(-1) # (T, dim_z, 1, 1)
+        if self.use_cuda:
+            z = z.cuda()
+
+        # down
+        hs = [self.inconv(x)]
+        for i in range(1, self.n_down_blocks+1):
+            layer = eval(f"self.down{i}")
+            hs.append(layer(hs[-1]))
+        
+        # concat latent variable
+        hs[-1] = torch.cat([hs[-1], z], 1)
+
+        # up
+        h = self.up1(hs[-1])
+        for i in range(2, self.n_up_blocks+1):
+            layer = eval(f"self.up{i}")
+            h = torch.cat([h, hs[-i]], 1)
+            h = layer(h)
+        h = self.outconv(torch.cat([h, hs[0]], 1))
+        h = h.permute(1, 0, 2, 3)
+
+        return h
+
+    def forward_videos(self, xs):
+        ys = [self(x) for x in xs]
+        ys = torch.stack(ys)
+
+        return ys
 
 class ImageDiscriminator(nn.Module):
     def __init__(self, n_channels, use_noise=False, noise_sigma=None, ndf=64):
@@ -199,3 +322,21 @@ class VideoDiscriminator(nn.Module):
     def forward(self, x):
         h = self.main(x).squeeze()
         return h
+
+if __name__=="__main__":
+    input_img_shape = (1, 16, 64, 64)
+    out_img_shape   = (3, 16, 64, 64)
+    net = ColorVideoGenerator(1, 3, 10)
+
+    # forward
+    x = torch.ones(input_img_shape)
+    x = net(x)
+    print(x.shape, out_img_shape)
+
+    # video batch forward
+    input_img_shape = (20, 1, 16, 64, 64)
+    out_img_shape   = (20, 3, 16, 64, 64)
+
+    x = torch.ones(input_img_shape)
+    x = net.forward_videos(x)
+    print(x.shape, out_img_shape)

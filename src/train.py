@@ -8,7 +8,8 @@ from torch.utils.data import DataLoader
 from dataset import VideoDataset
 from dataset import preprocess_isogd_dataset
 
-from models import VideoGenerator, ImageDiscriminator, VideoDiscriminator
+from models import DepthVideoGenerator, ColorVideoGenerator
+from models import ImageDiscriminator, VideoDiscriminator
 
 from trainer import Trainer
 
@@ -45,23 +46,29 @@ def main():
                     )
     
     # prepare models
-    gen = VideoGenerator(
-            configs["n_channels"],
-            configs["gen"]["dim_z_content"],
+    dgen = DepthVideoGenerator(
+            configs["dgen"]["n_channels"],
+            configs["dgen"]["dim_z_content"],
             0,
-            configs["gen"]["dim_z_motion"],
+            configs["dgen"]["dim_z_motion"],
             configs["video_length"],
             )
 
+    cgen = ColorVideoGenerator(
+            configs["cgen"]["in_ch"],
+            configs["cgen"]["out_ch"],
+            configs["cgen"]["dim_z_color"],
+            )
+
     idis = ImageDiscriminator(
-            configs["n_channels"],
+            configs["idis"]["n_channels"],
             configs["idis"]["use_noise"],
             configs["idis"]["noise_sigma"],
-            configs["vdis"]["ndf"],
+            configs["idis"]["ndf"],
             )
 
     vdis = VideoDiscriminator(
-            configs["n_channels"],
+            configs["vdis"]["n_channels"],
             configs["vdis"]["use_noise"],
             configs["vdis"]["noise_sigma"],
             configs["vdis"]["ndf"],
@@ -69,7 +76,7 @@ def main():
      
     # start training
     trainer = Trainer(dataloader, configs)
-    trainer.train(gen, idis, vdis)
+    trainer.train(dgen, cgen, idis, vdis)
 
 if __name__ == "__main__":
     main()

@@ -64,10 +64,10 @@ class VideoDataset(Dataset):
             t = np.random.randint(n_frames - self.video_length)
             frames_to_read = range(t, t+self.video_length)
             
-        # # read color video
-        # placeholder = str(color_path / "{:03d}.jpg")
-        # color_video = [dataio.read_img(placeholder.format(i)) for i in frames_to_read] 
-        # color_video = np.stack(color_video)
+        # read color video
+        placeholder = str(color_path / "{:03d}.jpg")
+        color_video = [dataio.read_img(placeholder.format(i)) for i in frames_to_read] 
+        color_video = np.stack(color_video)
         
         # read depth video
         placeholder = str(depth_path / "{:03d}.jpg")
@@ -75,15 +75,11 @@ class VideoDataset(Dataset):
         depth_video = np.stack(depth_video)
         depth_video = depth_video[...,0:1]
 
-        # rgbd_video = np.concatenate([color_video, depth_video], axis=3)
-        # rgbd_video = rgbd_video.transpose(3,0,1,2) # change to channel first
-        # rgbd_video = rgbd_video / 128.0 - 1.0      # change value range
+        rgbd_video = np.concatenate([color_video, depth_video], axis=3)
+        rgbd_video = rgbd_video.transpose(3,0,1,2) # change to channel first
+        rgbd_video = rgbd_video / 128.0 - 1.0      # change value range
         
-        depth_video = depth_video.transpose(3,0,1,2) # change to channel first
-        depth_video = depth_video / 128.0 - 1.0      # change value range
-        
-        # return rgbd_video
-        return depth_video
+        return rgbd_video
 
 def preprocess_isogd_dataset(dataset_path, save_path, length, img_size, n_jobs=-1):
     # read samples in 'train'
