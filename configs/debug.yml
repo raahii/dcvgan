@@ -24,6 +24,7 @@ dataset:
   name: "isogd"
   path: "data/isogd"
   n_workers: 4
+  number_limit: 110
 
 # model configs
 gen:
@@ -35,7 +36,6 @@ gen:
 
 # TODO: noise sigma schedule
 idis: 
-  n_channels: 
   use_noise: True
   noise_sigma: 0.1
   ndf: 64
