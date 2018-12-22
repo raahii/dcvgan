@@ -145,4 +145,5 @@ def preprocess_isogd_dataset(dataset_path, save_path, length, img_size, n_jobs=-
 
 if __name__=="__main__":
     dataset = VideoDataset(Path("data/isogd/"), preprocess_isogd_dataset)
+    import pdb; pdb.set_trace()
     print(dataset[0].shape)

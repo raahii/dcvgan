@@ -9,6 +9,8 @@ from torch import nn
 from torch.autograd import Variable
 import torch.optim as optim
 
+from torch.utils.data import DataLoader
+
 from logger import Logger
 import utils
 
@@ -20,6 +22,15 @@ class Trainer(object):
         self.video_length = configs["video_length"]
 
         self.dataloader = dataloader
+
+        self.num_log, self.rows_log, self.cols_log = 36, 6, 6
+        self.dataloader_log = DataLoader(
+                                self.dataloader.dataset, 
+                                batch_size=self.num_log,
+                                num_workers=1,
+                                shuffle=True,
+                                drop_last=True,
+                                )
         
         self.log_dir = Path(configs["log_dir"]) / configs["experiment_name"]
         self.log_dir.mkdir(parents=True, exist_ok=True)
@@ -64,6 +75,18 @@ class Trainer(object):
         loss += self.gan_criterion(y_fake_v, ones_v) / y_fake_v.numel()
 
         return loss
+
+    def log_rgbd_videos(self, color_videos, depth_videos, tag, iteration):
+        # (B, C, T, H, W)
+        color_videos = utils.videos_to_numpy(color_videos)
+        depth_videos = utils.videos_to_numpy(depth_videos)
+
+        # (1, C, T, H*rows, W*cols)
+        grid_c = utils.make_video_grid(color_videos, self.rows_log, self.cols_log)
+        grid_d = utils.make_video_grid(depth_videos, self.rows_log, self.cols_log)
+
+        grid_video = np.concatenate([grid_d, grid_c], axis=-1)
+        self.logger.log_video(tag, grid_video, iteration)
 
     def train(self, dgen, cgen, idis, vdis):
         def snapshot_models(dgen, cgen, idis, vdis, i):
@@ -154,24 +177,20 @@ class Trainer(object):
             if iteration % configs["snapshot_interval"] == 0:
                 snapshot_models(dgen, cgen, idis, vdis, iteration)
 
-
-            # log generator samples
+            # log samples
             if iteration % configs["log_samples_interval"] == 0:
                 dgen.eval(); cgen.eval()
-                num, rows, cols = 36, 6, 6
-
-                d = dgen.sample_videos(num)
+                
+                # fake samples
+                d = dgen.sample_videos(self.num_log)
                 c = cgen.forward_videos(d)
                 d = d.repeat(1,3,1,1,1) # to have 3-channels
+                self.log_rgbd_videos(c, d, 'random_samples(fake)', iteration)
                 
-                d = utils.videos_to_numpy(d) #(B, C, T, H, W)
-                grid_d = utils.make_video_grid(d, rows, cols) #(1, C, T, H*rows, W*cols)
-
-                c = utils.videos_to_numpy(c)
-                grid_c = utils.make_video_grid(c, rows, cols)
-
-                grid_video = np.concatenate([grid_d, grid_c], axis=-1)
-                logger.log_video("random_samples", grid_video, iteration)
+                # real samples
+                v = next(self.dataloader_log.__iter__())
+                c, d = v[:, 0:3], v[:, 3:4].repeat(1,3,1,1,1)
+                self.log_rgbd_videos(c, d, 'random_samples(real)', iteration)
             
             # evaluate generated samples
             # if iteration % configs["evaluation_interval"] == 0:
