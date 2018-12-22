@@ -1,5 +1,6 @@
 import time
 from pathlib import Path
+import pickle
 
 import numpy as np
 
@@ -13,7 +14,6 @@ import utils
 
 class Trainer(object):
     def __init__(self, dataloader, configs):
-
         self.batchsize = configs["batchsize"]
         self.epoch_iters = len(dataloader)
         self.max_iteration = configs["iterations"]
@@ -37,6 +37,7 @@ class Trainer(object):
         self.use_cuda = torch.cuda.is_available()
         self.device = self.use_cuda and torch.device('cuda') or torch.device('cpu')
         self.configs = configs
+
 
     def create_optimizer(self, model, lr, decay):
         return optim.Adam(
@@ -65,6 +66,12 @@ class Trainer(object):
         return loss
 
     def train(self, dgen, cgen, idis, vdis):
+        def snapshot_models(dgen, cgen, idis, vdis, i):
+            torch.save(dgen.state_dict(), str(self.log_dir/'dgen_{:05d}.pytorch'.format(i)))
+            torch.save(cgen.state_dict(), str(self.log_dir/'cgen_{:05d}.pytorch'.format(i)))
+            torch.save(idis.state_dict(), str(self.log_dir/'idis_{:05d}.pytorch'.format(i)))
+            torch.save(vdis.state_dict(), str(self.log_dir/'vdis_{:05d}.pytorch'.format(i)))
+
         if self.use_cuda:
             dgen.cuda()
             cgen.cuda()
@@ -110,6 +117,8 @@ class Trainer(object):
             idis.train(); opt_idis.zero_grad()
             vdis.train(); opt_vdis.zero_grad()
 
+            x_fake = x_fake.detach()
+
             # real batch
             x_real = next(dataiter).float()
             x_real = x_real.cuda() if self.use_cuda else x_fake
@@ -117,9 +126,9 @@ class Trainer(object):
 
             y_real_i = idis(x_real[:,:,t_rand])
             y_real_v = vdis(x_real)
-
-            y_fake_i = idis(x_fake[:,:,t_rand].detach())
-            y_fake_v = vdis(x_fake.detach())
+            
+            y_fake_i = idis(x_fake[:,:,t_rand])
+            y_fake_v = vdis(x_fake)
             
             # compute loss
             loss_idis = self.compute_dis_loss(y_real_i, y_fake_i)
@@ -143,10 +152,8 @@ class Trainer(object):
 
             # snapshot models
             if iteration % configs["snapshot_interval"] == 0:
-                torch.save(dgen, str(self.log_dir/'dgen_{:05d}.pytorch'.format(iteration)))
-                torch.save(cgen, str(self.log_dir/'cgen_{:05d}.pytorch'.format(iteration)))
-                torch.save(idis, str(self.log_dir/'idis_{:05d}.pytorch'.format(iteration)))
-                torch.save(vdis, str(self.log_dir/'vdis_{:05d}.pytorch'.format(iteration)))
+                snapshot_models(dgen, cgen, idis, vdis, iteration)
+
 
             # log generator samples
             if iteration % configs["log_samples_interval"] == 0:
@@ -171,10 +178,7 @@ class Trainer(object):
             #    pass
             
             if iteration >= self.max_iteration:
-                torch.save(dgen, str(self.log_dir/'dgen_{:05d}.pytorch'.format(iteration)))
-                torch.save(cgen, str(self.log_dir/'cgen_{:05d}.pytorch'.format(iteration)))
-                torch.save(idis, str(self.log_dir/'idis_{:05d}.pytorch'.format(iteration)))
-                torch.save(vdis, str(self.log_dir/'vdis_{:05d}.pytorch'.format(iteration)))
+                snapshot_models(dgen, cgen, idis, vdis, iteration)
                 break
 
             logger.next_iter()

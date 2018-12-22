@@ -8,6 +8,7 @@ A pytorch implemention of depth condtional video generation.
 - [ ] implement logging to the file, dump config file
 - [ ] implement evaluation script, evaluation training hook
 - [ ] reproduce result
+- [ ] pickle the models
 
 ### Getting Started
 

@@ -23,17 +23,16 @@ class Noise(nn.Module):
         return x
 
 class DepthVideoGenerator(nn.Module):
-    def __init__(self, n_channels, dim_z_content, dim_z_category, dim_z_motion,
+    def __init__(self, n_channels, dim_z_content, dim_z_motion,
                  video_length, ngf=64):
         super(DepthVideoGenerator, self).__init__()
 
         self.n_channels = n_channels
         self.dim_z_content = dim_z_content
-        self.dim_z_category = dim_z_category
         self.dim_z_motion = dim_z_motion
         self.video_length = video_length
 
-        dim_z = dim_z_motion + dim_z_category + dim_z_content
+        dim_z = dim_z_motion + dim_z_content
 
         self.recurrent = nn.GRUCell(dim_z_motion, dim_z_motion)
 
@@ -68,24 +67,6 @@ class DepthVideoGenerator(nn.Module):
 
         return z_m
 
-    def sample_z_categ(self, num_samples, video_len):
-        video_len = video_len if video_len is not None else self.video_length
-
-        if self.dim_z_category <= 0:
-            return None, np.zeros(num_samples)
-
-        classes_to_generate = np.random.randint(self.dim_z_category, size=num_samples)
-        one_hot = np.zeros((num_samples, self.dim_z_category), dtype=np.float32)
-        one_hot[np.arange(num_samples), classes_to_generate] = 1
-        one_hot_video = np.repeat(one_hot, video_len, axis=0)
-
-        one_hot_video = torch.from_numpy(one_hot_video)
-
-        if torch.cuda.is_available():
-            one_hot_video = one_hot_video.cuda()
-
-        return Variable(one_hot_video), classes_to_generate
-
     def sample_z_content(self, num_samples, video_len=None):
         video_len = video_len if video_len is not None else self.video_length
 
@@ -98,40 +79,31 @@ class DepthVideoGenerator(nn.Module):
 
     def sample_z_video(self, num_samples, video_len=None):
         z_content = self.sample_z_content(num_samples, video_len)
-        z_category, z_category_labels = self.sample_z_categ(num_samples, video_len)
         z_motion = self.sample_z_m(num_samples, video_len)
 
-        if z_category is not None:
-            z = torch.cat([z_content, z_category, z_motion], dim=1)
-        else:
-            z = torch.cat([z_content, z_motion], dim=1)
+        z = torch.cat([z_content, z_motion], dim=1)
 
-        return z, z_category_labels
+        return z
 
     def sample_videos(self, num_samples, video_len=None):
         video_len = video_len if video_len is not None else self.video_length
 
-        z, z_category_labels = self.sample_z_video(num_samples, video_len)
+        z = self.sample_z_video(num_samples, video_len)
 
         h = self.main(z.view(z.size(0), z.size(1), 1, 1))
         h = h.view(h.size(0) // video_len, video_len, self.n_channels, h.size(3), h.size(3))
-
-        z_category_labels = torch.from_numpy(z_category_labels)
-
-        if torch.cuda.is_available():
-            z_category_labels = z_category_labels.cuda()
 
         h = h.permute(0, 2, 1, 3, 4)
 
         return h 
 
     def sample_images(self, num_samples):
-        z, z_category_labels = self.sample_z_video(num_samples * self.video_length * 2)
+        z = self.sample_z_video(num_samples * self.video_length * 2)
 
         z = z.view(z.size(0), z.size(1), 1, 1)
         h = self.main(z)
 
-        return h, None
+        return h
 
     def get_gru_initial_state(self, num_samples):
         return Variable(T.FloatTensor(num_samples, self.dim_z_motion).normal_())
@@ -154,12 +126,12 @@ class Inconv(nn.Module):
         x = self.main(x)
         return x
 
-class UpBlock(nn.Module):
+class DownBlock(nn.Module):
     def __init__(self, in_ch, out_ch):
-        super(UpBlock, self).__init__()
+        super(DownBlock, self).__init__()
 
         self.main = nn.Sequential(
-            nn.ConvTranspose2d(in_ch, out_ch, kernel_size=4,
+            nn.Conv2d(in_ch, out_ch, kernel_size=4,
                       stride=2, padding=1, bias=False),
             nn.BatchNorm2d(out_ch),
             nn.LeakyReLU(0.2, True),
@@ -183,15 +155,15 @@ class Outconv(nn.Module):
         x = self.main(x)
         return x
 
-class DownBlock(nn.Module):
+class UpBlock(nn.Module):
     def __init__(self, in_ch, out_ch):
-        super(DownBlock, self).__init__()
+        super(UpBlock, self).__init__()
 
         self.main = nn.Sequential(
-            nn.Conv2d(in_ch, out_ch, kernel_size=4,
+            nn.ConvTranspose2d(in_ch, out_ch, kernel_size=4,
                       stride=2, padding=1, bias=False),
             nn.BatchNorm2d(out_ch),
-            nn.LeakyReLU(0.2, True),
+            nn.ReLU(True),
         )
 
     def forward(self, x):

@@ -49,7 +49,6 @@ def main():
     dgen = DepthVideoGenerator(
             configs["dgen"]["n_channels"],
             configs["dgen"]["dim_z_content"],
-            0,
             configs["dgen"]["dim_z_motion"],
             configs["video_length"],
             )
@@ -73,10 +72,17 @@ def main():
             configs["vdis"]["noise_sigma"],
             configs["vdis"]["ndf"],
             )
+
+    models = {
+        'dgen': dgen,
+        'cgen': cgen,
+        'idis': idis,
+        'vdis': vdis,
+    }
      
     # start training
     trainer = Trainer(dataloader, configs)
-    trainer.train(dgen, cgen, idis, vdis)
+    trainer.train(**models)
 
 if __name__ == "__main__":
     main()
