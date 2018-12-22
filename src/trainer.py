@@ -180,26 +180,27 @@ class Trainer(object):
             # log samples
             if iteration % configs["log_samples_interval"] == 0:
                 dgen.eval(); cgen.eval()
-                
-                # fake samples
-                d = dgen.sample_videos(self.num_log)
-                c = cgen.forward_videos(d)
-                d = d.repeat(1,3,1,1,1) # to have 3-channels
-                self.log_rgbd_videos(c, d, 'fake_samples', iteration)
-                self.logger.log_histgram(c[:,:,0], 'histgram_fake', iteration)
 
-                # fake samples with fixed depth
-                d = dgen.sample_videos(1)
-                d = d.repeat(self.num_log,1,1,1,1)
-                c = cgen.forward_videos(d)
-                d = d.repeat(1,3,1,1,1) # to have 3-channels
-                self.log_rgbd_videos(c, d, 'fake_samples_fixed_depth', iteration)
+                with torch.no_grad():
+                    # fake samples
+                    d = dgen.sample_videos(self.num_log)
+                    c = cgen.forward_videos(d)
+                    d = d.repeat(1,3,1,1,1) # to have 3-channels
+                    self.log_rgbd_videos(c, d, 'fake_samples', iteration)
+                    self.logger.log_histgram(c[:,0:3,0], 'colorspace_fake', iteration)
 
-                # real samples
-                v = next(self.dataloader_log.__iter__())
-                c, d = v[:, 0:3], v[:, 3:4].repeat(1,3,1,1,1)
-                self.log_rgbd_videos(c, d, 'real_samples', iteration)
-                self.logger.log_histgram(c[:,:,0], 'histgram_real', iteration)
+                    # fake samples with fixed depth
+                    d = dgen.sample_videos(1)
+                    d = d.repeat(self.num_log,1,1,1,1)
+                    c = cgen.forward_videos(d)
+                    d = d.repeat(1,3,1,1,1)
+                    self.log_rgbd_videos(c, d, 'fake_samples_fixed_depth', iteration)
+
+                    # real samples
+                    v = next(self.dataloader_log.__iter__())
+                    c, d = v[:, 0:3], v[:, 3:4].repeat(1,3,1,1,1)
+                    self.log_rgbd_videos(c, d, 'real_samples', iteration)
+                    self.logger.log_histgram(c[:,0:3,0], 'colorspace_real', iteration)
             
             # evaluate generated samples
             # if iteration % configs["evaluation_interval"] == 0:

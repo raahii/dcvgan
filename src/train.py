@@ -47,27 +47,22 @@ def main():
     
     # prepare models
     dgen = DepthVideoGenerator(
-            configs["dgen"]["n_channels"],
             configs["dgen"]["dim_z_content"],
             configs["dgen"]["dim_z_motion"],
             configs["video_length"],
             )
 
     cgen = ColorVideoGenerator(
-            configs["cgen"]["in_ch"],
-            configs["cgen"]["out_ch"],
             configs["cgen"]["dim_z_color"],
             )
 
     idis = ImageDiscriminator(
-            configs["idis"]["n_channels"],
             configs["idis"]["use_noise"],
             configs["idis"]["noise_sigma"],
             configs["idis"]["ndf"],
             )
 
     vdis = VideoDiscriminator(
-            configs["vdis"]["n_channels"],
             configs["vdis"]["use_noise"],
             configs["vdis"]["noise_sigma"],
             configs["vdis"]["ndf"],

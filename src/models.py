@@ -23,11 +23,10 @@ class Noise(nn.Module):
         return x
 
 class DepthVideoGenerator(nn.Module):
-    def __init__(self, n_channels, dim_z_content, dim_z_motion,
+    def __init__(self, dim_z_content, dim_z_motion,
                  video_length, ngf=64):
         super(DepthVideoGenerator, self).__init__()
 
-        self.n_channels = n_channels
         self.dim_z_content = dim_z_content
         self.dim_z_motion = dim_z_motion
         self.video_length = video_length
@@ -49,7 +48,7 @@ class DepthVideoGenerator(nn.Module):
             nn.ConvTranspose2d(ngf * 2, ngf, 4, 2, 1, bias=False),
             nn.BatchNorm2d(ngf),
             nn.ReLU(True),
-            nn.ConvTranspose2d(ngf, self.n_channels, 4, 2, 1, bias=False),
+            nn.ConvTranspose2d(ngf, 1, 4, 2, 1, bias=False),
             nn.Tanh()
         )
 
@@ -91,7 +90,7 @@ class DepthVideoGenerator(nn.Module):
         z = self.sample_z_video(num_samples, video_len)
 
         h = self.main(z.view(z.size(0), z.size(1), 1, 1))
-        h = h.view(h.size(0) // video_len, video_len, self.n_channels, h.size(3), h.size(3))
+        h = h.view(h.size(0) // video_len, video_len, 1, h.size(3), h.size(3))
 
         h = h.permute(0, 2, 1, 3, 4)
 
@@ -118,8 +117,6 @@ class Inconv(nn.Module):
         self.main = nn.Sequential(
             nn.Conv2d(in_ch, out_ch, kernel_size=3,
                       stride=1, padding=1, bias=False),
-            nn.BatchNorm2d(out_ch),
-            nn.LeakyReLU(0.2, True),
         )
 
     def forward(self, x):
@@ -134,7 +131,7 @@ class DownBlock(nn.Module):
             nn.Conv2d(in_ch, out_ch, kernel_size=4,
                       stride=2, padding=1, bias=False),
             nn.BatchNorm2d(out_ch),
-            nn.LeakyReLU(0.2, True),
+            nn.LeakyReLU(0.2, inplace=False)
         )
 
     def forward(self, x):
@@ -163,7 +160,7 @@ class UpBlock(nn.Module):
             nn.ConvTranspose2d(in_ch, out_ch, kernel_size=4,
                       stride=2, padding=1, bias=False),
             nn.BatchNorm2d(out_ch),
-            nn.ReLU(True),
+            nn.ReLU(inplace=False),
         )
 
     def forward(self, x):
@@ -174,14 +171,12 @@ class ColorVideoGenerator(nn.Module):
     n_down_blocks = 6
     n_up_blocks = 6
     use_cuda = torch.cuda.is_available()
-    def __init__(self, in_ch, out_ch, dim_z, ngf=64):
+    def __init__(self, dim_z, ngf=64):
         super(ColorVideoGenerator, self).__init__()
 
-        self.in_ch = in_ch
-        self.out_ch = out_ch
         self.dim_z = dim_z
 
-        self.inconv = Inconv(in_ch, ngf*1)
+        self.inconv = Inconv(1, ngf*1)
         self.down1  = DownBlock(ngf*1, ngf*1)
         self.down2  = DownBlock(ngf*1, ngf*2)
         self.down3  = DownBlock(ngf*2, ngf*4)
@@ -195,7 +190,7 @@ class ColorVideoGenerator(nn.Module):
         self.up4     = UpBlock(ngf*8      , ngf*2)
         self.up5     = UpBlock(ngf*4      , ngf*1)
         self.up6     = UpBlock(ngf*2      , ngf*1)
-        self.outconv = Outconv(ngf*2, out_ch)
+        self.outconv = Outconv(ngf*2, 3)
 
     def forward(self, x):
         # video to images
@@ -237,62 +232,82 @@ class ColorVideoGenerator(nn.Module):
         return ys
 
 class ImageDiscriminator(nn.Module):
-    def __init__(self, n_channels, use_noise=False, noise_sigma=None, ndf=64):
+    def __init__(self, use_noise=False, noise_sigma=None, ndf=64):
         super(ImageDiscriminator, self).__init__()
 
         self.use_noise = use_noise
 
-        self.main = nn.Sequential(
+        self.conv_c = nn.Sequential(
             Noise(use_noise, sigma=noise_sigma),
-            nn.Conv2d(n_channels, ndf, 4, 2, 1, bias=False),
-            nn.LeakyReLU(0.2, inplace=True),
+            nn.Conv2d(3, ndf//2, 4, 2, 1, bias=False),
+            nn.LeakyReLU(0.2, inplace=False),
+        )
 
+        self.conv_d = nn.Sequential(
+            Noise(use_noise, sigma=noise_sigma),
+            nn.Conv2d(1, ndf//2, 4, 2, 1, bias=False),
+            nn.LeakyReLU(0.2, inplace=False),
+        )
+
+        self.main = nn.Sequential(
             Noise(use_noise, sigma=noise_sigma),
             nn.Conv2d(ndf, ndf * 2, 4, 2, 1, bias=False),
             nn.BatchNorm2d(ndf * 2),
-            nn.LeakyReLU(0.2, inplace=True),
+            nn.LeakyReLU(0.2, inplace=False),
 
             Noise(use_noise, sigma=noise_sigma),
             nn.Conv2d(ndf * 2, ndf * 4, 4, 2, 1, bias=False),
             nn.BatchNorm2d(ndf * 4),
-            nn.LeakyReLU(0.2, inplace=True),
+            nn.LeakyReLU(0.2, inplace=False),
 
             Noise(use_noise, sigma=noise_sigma),
             nn.Conv2d(ndf * 4, 1, 4, 2, 1, bias=False),
         )
 
     def forward(self, x):
-        h = self.main(x).squeeze()
+        hc = self.conv_c(x[:,0:3])
+        hd = self.conv_d(x[:,3:4])
+        h = torch.cat([hc, hd], 1)
+        h = self.main(h).squeeze()
+
         return h
 
 
 class VideoDiscriminator(nn.Module):
-    def __init__(self, n_channels, use_noise=False, noise_sigma=None, ndf=64):
+    def __init__(self, use_noise=False, noise_sigma=None, ndf=64):
         super(VideoDiscriminator, self).__init__()
 
-        self.n_channels = n_channels
         self.use_noise = use_noise
+
+        self.conv_c = nn.Sequential(
+            nn.Conv3d(3, ndf//2, 4, stride=(1, 2, 2), padding=(0, 1, 1), bias=False),
+            nn.LeakyReLU(0.2, inplace=False),
+        )
+
+        self.conv_d = nn.Sequential(
+            nn.Conv3d(1, ndf//2, 4, stride=(1, 2, 2), padding=(0, 1, 1), bias=False),
+            nn.LeakyReLU(0.2, inplace=False),
+        )
 
         self.main = nn.Sequential(
             Noise(use_noise, sigma=noise_sigma),
-            nn.Conv3d(n_channels, ndf, 4, stride=(1, 2, 2), padding=(0, 1, 1), bias=False),
-            nn.LeakyReLU(0.2, inplace=True),
-
-            Noise(use_noise, sigma=noise_sigma),
             nn.Conv3d(ndf, ndf * 2, 4, stride=(1, 2, 2), padding=(0, 1, 1), bias=False),
             nn.BatchNorm3d(ndf * 2),
-            nn.LeakyReLU(0.2, inplace=True),
+            nn.LeakyReLU(0.2, inplace=False),
 
             Noise(use_noise, sigma=noise_sigma),
             nn.Conv3d(ndf * 2, ndf * 4, 4, stride=(1, 2, 2), padding=(0, 1, 1), bias=False),
             nn.BatchNorm3d(ndf * 4),
-            nn.LeakyReLU(0.2, inplace=True),
+            nn.LeakyReLU(0.2, inplace=False),
 
             nn.Conv3d(ndf * 4, 1, 4, stride=(1, 2, 2), padding=(0, 1, 1), bias=False),
         )
 
     def forward(self, x):
-        h = self.main(x).squeeze()
+        hc = self.conv_c(x[:,0:3])
+        hd = self.conv_d(x[:,3:4])
+        h = torch.cat([hc, hd], 1)
+        h = self.main(h).squeeze()
         return h
 
 if __name__=="__main__":

@@ -1,8 +1,8 @@
 # experiment configs
-experiment_name: "debug"
+experiment_name: "cvim09"
 
 # basic configs
-batchsize: 5
+batchsize: 20
 iterations: 50000
 seed: 0
 
@@ -14,16 +14,16 @@ tensorboard_dir: "result/isogd/runs"
 
 # interval
 log_interval:         100
-log_samples_interval: 100
-snapshot_interval:    100
-evaluation_interval:  10000
+log_samples_interval: 5000
+snapshot_interval:    5000
+evaluation_interval:  60000
 
 # dataset configs
 dataset: 
   name: "isogd"
   path: "data/isogd"
-  n_workers: 1
-  number_limit: 110
+  n_workers: 4
+  number_limit: -1
 
 # model configs
 dgen:
