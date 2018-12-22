@@ -203,8 +203,8 @@ class ColorVideoGenerator(nn.Module):
         x = x.permute(1, 0, 2, 3)
         
         # replicate z along time axis
-        z = np.random.normal(0, 1, (self.dim_z)).astype(np.float32)
-        z = torch.from_numpy(z)
+        z = np.random.normal(0, 1, (self.dim_z))
+        z = torch.from_numpy(z).float()
         z = z.unsqueeze(0).repeat(T, 1) # (T, dim_z)
         z = z.unsqueeze(-1).unsqueeze(-1) # (T, dim_z, 1, 1)
         if self.use_cuda:

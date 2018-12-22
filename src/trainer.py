@@ -185,12 +185,19 @@ class Trainer(object):
                 d = dgen.sample_videos(self.num_log)
                 c = cgen.forward_videos(d)
                 d = d.repeat(1,3,1,1,1) # to have 3-channels
-                self.log_rgbd_videos(c, d, 'random_samples(fake)', iteration)
-                
+                self.log_rgbd_videos(c, d, 'fake_samples', iteration)
+
+                # fake samples with fixed depth
+                d = dgen.sample_videos(1)
+                d = d.repeat(self.num,1,1,1,1)
+                c = cgen.forward_videos(d)
+                d = d.repeat(1,3,1,1,1) # to have 3-channels
+                self.log_rgbd_videos(c, d, 'fake_samples_fixed_depth', iteration)
+
                 # real samples
                 v = next(self.dataloader_log.__iter__())
                 c, d = v[:, 0:3], v[:, 3:4].repeat(1,3,1,1,1)
-                self.log_rgbd_videos(c, d, 'random_samples(real)', iteration)
+                self.log_rgbd_videos(c, d, 'real_samples', iteration)
             
             # evaluate generated samples
             # if iteration % configs["evaluation_interval"] == 0:
