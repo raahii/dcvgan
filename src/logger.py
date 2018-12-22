@@ -31,7 +31,7 @@ class Logger(object):
             print("{:>12} ".format(name), end="")
         print("")
 
-    def log_metrics(self):
+    def print_log(self):
         self.metrics["elapsed_time"] = time.time() - self.start_time
 
         metric_strings = []
@@ -52,7 +52,7 @@ class Logger(object):
             print("{:>12} ".format(s), end="")
         print("")
 
-    def log_tensorboard(self):
+    def log_metrics(self):
         step = self.metrics["iteration"]
         for name in ["loss_gen", "loss_idis", "loss_vdis"]:
             value = self.metrics[name]
@@ -61,11 +61,15 @@ class Logger(object):
     def log_video(self, name, videos, step):
         self.writer.add_video(name, videos, fps=8, global_step=step)
 
+    def log_histgram(self, var, tag, step):
+        var = var.clone().cpu().data.numpy()
+        self.writer.add_histogram(tag, var, step)
+
     def next_iter(self):
         # hook
         if self.metrics["iteration"] % self.log_interval == 0:
+            self.print_log()
             self.log_metrics()
-            self.log_tensorboard()
         
         # update iteration
         self.metrics['iteration'] += 1
@@ -75,4 +79,4 @@ class Logger(object):
 if __name__=="__main__":
     l = Logger(None, None, [1,2,3])
     time.sleep(3)
-    l.log_metrics()
+    l.print_log()

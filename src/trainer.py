@@ -186,10 +186,11 @@ class Trainer(object):
                 c = cgen.forward_videos(d)
                 d = d.repeat(1,3,1,1,1) # to have 3-channels
                 self.log_rgbd_videos(c, d, 'fake_samples', iteration)
+                self.logger.log_histgram(c[:,:,0], 'histgram_fake', iteration)
 
                 # fake samples with fixed depth
                 d = dgen.sample_videos(1)
-                d = d.repeat(self.num,1,1,1,1)
+                d = d.repeat(self.num_log,1,1,1,1)
                 c = cgen.forward_videos(d)
                 d = d.repeat(1,3,1,1,1) # to have 3-channels
                 self.log_rgbd_videos(c, d, 'fake_samples_fixed_depth', iteration)
@@ -198,6 +199,7 @@ class Trainer(object):
                 v = next(self.dataloader_log.__iter__())
                 c, d = v[:, 0:3], v[:, 3:4].repeat(1,3,1,1,1)
                 self.log_rgbd_videos(c, d, 'real_samples', iteration)
+                self.logger.log_histgram(c[:,:,0], 'histgram_real', iteration)
             
             # evaluate generated samples
             # if iteration % configs["evaluation_interval"] == 0:
