@@ -47,6 +47,10 @@ class Trainer(object):
         self.device = self.use_cuda and torch.device('cuda') or torch.device('cpu')
         self.configs = configs
 
+        np.random.seed(configs['seed'])
+        torch.manual_seed(configs['seed'])
+        torch.cuda.manual_seed_all(configs['seed'])
+        torch.backends.cudnn.benchmark = True
 
     def create_optimizer(self, model, lr, decay):
         return optim.Adam(
@@ -84,7 +88,7 @@ class Trainer(object):
         grid_d = utils.make_video_grid(depth_videos, self.rows_log, self.cols_log)
 
         grid_video = np.concatenate([grid_d, grid_c], axis=-1)
-        self.logger.tf_log_video(tag, grid_video, iteration)
+        self.logger.log_video(tag, grid_video, iteration)
 
     def train(self, dgen, cgen, idis, vdis):
         def snapshot_models(dgen, cgen, idis, vdis, i):
@@ -129,7 +133,7 @@ class Trainer(object):
                 loss_gen = self.compute_gen_loss(y_fake_i, y_fake_v)
 
                 # update weights
-                loss_gen.backward(); opt_dgen.step(); opt_cgen.step()
+                loss_gen.backward(); opt_cgen.step()opt_dgen.step(); 
 
 
                 #--------------------
@@ -139,9 +143,8 @@ class Trainer(object):
                 idis.train(); opt_idis.zero_grad()
                 vdis.train(); opt_vdis.zero_grad()
 
-                x_fake = x_fake.detach()
-
                 # real batch
+                x_fake = x_fake.detach()
                 x_real = x_real.float()
                 x_real = x_real.cuda() if self.use_cuda else x_fake
                 x_real = Variable(x_real)

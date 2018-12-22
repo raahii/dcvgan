@@ -38,16 +38,16 @@ class DepthVideoGenerator(nn.Module):
         self.main = nn.Sequential(
             nn.ConvTranspose2d(dim_z, ngf * 8, 4, 1, 0, bias=False),
             nn.BatchNorm2d(ngf * 8),
-            nn.ReLU(True),
+            nn.ReLU(inplace=True),
             nn.ConvTranspose2d(ngf * 8, ngf * 4, 4, 2, 1, bias=False),
             nn.BatchNorm2d(ngf * 4),
-            nn.ReLU(True),
+            nn.ReLU(inplace=True),
             nn.ConvTranspose2d(ngf * 4, ngf * 2, 4, 2, 1, bias=False),
             nn.BatchNorm2d(ngf * 2),
-            nn.ReLU(True),
+            nn.ReLU(inplace=True),
             nn.ConvTranspose2d(ngf * 2, ngf, 4, 2, 1, bias=False),
             nn.BatchNorm2d(ngf),
-            nn.ReLU(True),
+            nn.ReLU(inplace=True),
             nn.ConvTranspose2d(ngf, 1, 4, 2, 1, bias=False),
             nn.Tanh()
         )
@@ -131,7 +131,7 @@ class DownBlock(nn.Module):
             nn.Conv2d(in_ch, out_ch, kernel_size=4,
                       stride=2, padding=1, bias=False),
             nn.BatchNorm2d(out_ch),
-            nn.LeakyReLU(0.2, inplace=False)
+            nn.LeakyReLU(0.2, inplace=True)
         )
 
     def forward(self, x):
@@ -145,7 +145,6 @@ class Outconv(nn.Module):
         self.main = nn.Sequential(
             nn.ConvTranspose2d(in_ch, out_ch, kernel_size=3,
                                 stride=1, padding=1, bias=False),
-            nn.Tanh(),
         )
 
     def forward(self, x):
@@ -160,7 +159,7 @@ class UpBlock(nn.Module):
             nn.ConvTranspose2d(in_ch, out_ch, kernel_size=4,
                       stride=2, padding=1, bias=False),
             nn.BatchNorm2d(out_ch),
-            nn.ReLU(inplace=False),
+            nn.ReLU(inplace=True),
         )
 
     def forward(self, x):
@@ -240,25 +239,25 @@ class ImageDiscriminator(nn.Module):
         self.conv_c = nn.Sequential(
             Noise(use_noise, sigma=noise_sigma),
             nn.Conv2d(3, ndf//2, 4, 2, 1, bias=False),
-            nn.LeakyReLU(0.2, inplace=False),
+            nn.LeakyReLU(0.2, inplace=True),
         )
 
         self.conv_d = nn.Sequential(
             Noise(use_noise, sigma=noise_sigma),
             nn.Conv2d(1, ndf//2, 4, 2, 1, bias=False),
-            nn.LeakyReLU(0.2, inplace=False),
+            nn.LeakyReLU(0.2, inplace=True),
         )
 
         self.main = nn.Sequential(
             Noise(use_noise, sigma=noise_sigma),
             nn.Conv2d(ndf, ndf * 2, 4, 2, 1, bias=False),
             nn.BatchNorm2d(ndf * 2),
-            nn.LeakyReLU(0.2, inplace=False),
+            nn.LeakyReLU(0.2, inplace=True),
 
             Noise(use_noise, sigma=noise_sigma),
             nn.Conv2d(ndf * 2, ndf * 4, 4, 2, 1, bias=False),
             nn.BatchNorm2d(ndf * 4),
-            nn.LeakyReLU(0.2, inplace=False),
+            nn.LeakyReLU(0.2, inplace=True),
 
             Noise(use_noise, sigma=noise_sigma),
             nn.Conv2d(ndf * 4, 1, 4, 2, 1, bias=False),
@@ -281,24 +280,24 @@ class VideoDiscriminator(nn.Module):
 
         self.conv_c = nn.Sequential(
             nn.Conv3d(3, ndf//2, 4, stride=(1, 2, 2), padding=(0, 1, 1), bias=False),
-            nn.LeakyReLU(0.2, inplace=False),
+            nn.LeakyReLU(0.2, inplace=True),
         )
 
         self.conv_d = nn.Sequential(
             nn.Conv3d(1, ndf//2, 4, stride=(1, 2, 2), padding=(0, 1, 1), bias=False),
-            nn.LeakyReLU(0.2, inplace=False),
+            nn.LeakyReLU(0.2, inplace=True),
         )
 
         self.main = nn.Sequential(
             Noise(use_noise, sigma=noise_sigma),
             nn.Conv3d(ndf, ndf * 2, 4, stride=(1, 2, 2), padding=(0, 1, 1), bias=False),
             nn.BatchNorm3d(ndf * 2),
-            nn.LeakyReLU(0.2, inplace=False),
+            nn.LeakyReLU(0.2, inplace=True),
 
             Noise(use_noise, sigma=noise_sigma),
             nn.Conv3d(ndf * 2, ndf * 4, 4, stride=(1, 2, 2), padding=(0, 1, 1), bias=False),
             nn.BatchNorm3d(ndf * 4),
-            nn.LeakyReLU(0.2, inplace=False),
+            nn.LeakyReLU(0.2, inplace=True),
 
             nn.Conv3d(ndf * 4, 1, 4, stride=(1, 2, 2), padding=(0, 1, 1), bias=False),
         )
