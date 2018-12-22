@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.parallel
 import torch.utils.data
+import torch.nn.init as init
 from torch.autograd import Variable
 
 import numpy as np
@@ -10,6 +11,7 @@ if torch.cuda.is_available():
     T = torch.cuda
 else:
     T = torch
+
 
 class Noise(nn.Module):
     def __init__(self, use_noise, sigma=0.2):
@@ -110,6 +112,11 @@ class DepthVideoGenerator(nn.Module):
     def get_iteration_noise(self, num_samples):
         return Variable(T.FloatTensor(num_samples, self.dim_z_motion).normal_())
 
+def init_normal(layer):
+    if type(layer) in [nn.Conv2d, nn.ConvTranspose2d]:
+        # print(layer)
+        init.normal_(layer.weight, mean=0, std=0.02)
+
 class Inconv(nn.Module):
     def __init__(self, in_ch, out_ch):
         super(Inconv, self).__init__()
@@ -118,6 +125,7 @@ class Inconv(nn.Module):
             nn.Conv2d(in_ch, out_ch, kernel_size=3,
                       stride=1, padding=1, bias=False),
         )
+        self.main.apply(init_normal)
 
     def forward(self, x):
         x = self.main(x)
@@ -133,6 +141,7 @@ class DownBlock(nn.Module):
             nn.BatchNorm2d(out_ch),
             nn.LeakyReLU(0.2, inplace=True)
         )
+        self.main.apply(init_normal)
 
     def forward(self, x):
         x = self.main(x)
@@ -146,6 +155,7 @@ class Outconv(nn.Module):
             nn.ConvTranspose2d(in_ch, out_ch, kernel_size=3,
                                 stride=1, padding=1, bias=False),
         )
+        self.main.apply(init_normal)
 
     def forward(self, x):
         x = self.main(x)
@@ -161,6 +171,7 @@ class UpBlock(nn.Module):
             nn.BatchNorm2d(out_ch),
             nn.ReLU(inplace=True),
         )
+        self.main.apply(init_normal)
 
     def forward(self, x):
         x = self.main(x)

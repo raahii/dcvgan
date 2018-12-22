@@ -133,7 +133,7 @@ class Trainer(object):
                 loss_gen = self.compute_gen_loss(y_fake_i, y_fake_v)
 
                 # update weights
-                loss_gen.backward(); opt_cgen.step()opt_dgen.step(); 
+                loss_gen.backward(); opt_cgen.step(); opt_dgen.step()
 
 
                 #--------------------
