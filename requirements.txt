@@ -3,6 +3,7 @@ scipy
 joblib
 tqdm
 pyyaml
+logzero
 
 pillow-simd
 opencv-python
