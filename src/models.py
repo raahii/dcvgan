@@ -25,8 +25,7 @@ class Noise(nn.Module):
         return x
 
 class DepthVideoGenerator(nn.Module):
-    def __init__(self, dim_z_content, dim_z_motion,
-                 video_length, ngf=64):
+    def __init__(self, dim_z_content, dim_z_motion, video_length, ngf=64):
         super(DepthVideoGenerator, self).__init__()
 
         self.dim_z_content = dim_z_content
@@ -34,6 +33,7 @@ class DepthVideoGenerator(nn.Module):
         self.video_length = video_length
 
         dim_z = dim_z_motion + dim_z_content
+        self.dim_z = dim_z
 
         self.recurrent = nn.GRUCell(dim_z_motion, dim_z_motion)
 
@@ -54,71 +54,61 @@ class DepthVideoGenerator(nn.Module):
             nn.Tanh()
         )
 
-    def sample_z_m(self, num_samples, video_len=None):
-        video_len = video_len if video_len is not None else self.video_length
+        self.apply(init_normal)
 
-        h_t = [self.get_gru_initial_state(num_samples)]
+    def forward_dummy(self):
+        return self.sample_videos(2)
 
-        for frame_num in range(video_len):
-            e_t = self.get_iteration_noise(num_samples)
+    def sample_z_m(self, batchsize):
+        h_t = [self.get_gru_initial_state(batchsize)]
+        for frame_num in range(self.video_length):
+            e_t = self.get_iteration_noise(batchsize)
             h_t.append(self.recurrent(e_t, h_t[-1]))
-
-        z_m_t = [h_k.view(-1, 1, self.dim_z_motion) for h_k in h_t]
-        z_m = torch.cat(z_m_t[1:], dim=1).view(-1, self.dim_z_motion)
+        
+        # (batchsize, dim_z_motion*self.video_length)
+        z_m = torch.stack(h_t[1:], 1)
+        # (batchsize*self.video_length, dim_z_motion)
+        z_m = z_m.view(batchsize*self.video_length, -1)
 
         return z_m
 
-    def sample_z_content(self, num_samples, video_len=None):
-        video_len = video_len if video_len is not None else self.video_length
+    def sample_z_content(self, batchsize):
+        content = Variable(T.FloatTensor(batchsize, self.dim_z_content).normal_())
+        content = content.repeat(1, self.video_length)\
+                         .view(batchsize*self.video_length, -1) # same operation as np.repeat
+        return content
 
-        content = np.random.normal(0, 1, (num_samples, self.dim_z_content)).astype(np.float32)
-        content = np.repeat(content, video_len, axis=0)
-        content = torch.from_numpy(content)
-        if torch.cuda.is_available():
-            content = content.cuda()
-        return Variable(content)
-
-    def sample_z_video(self, num_samples, video_len=None):
-        z_content = self.sample_z_content(num_samples, video_len)
-        z_motion = self.sample_z_m(num_samples, video_len)
-
+    def sample_z_video(self, batchsize):
+        z_content = self.sample_z_content(batchsize)
+        z_motion = self.sample_z_m(batchsize)
+        
         z = torch.cat([z_content, z_motion], dim=1)
 
         return z
 
-    def sample_videos(self, num_samples, video_len=None):
-        video_len = video_len if video_len is not None else self.video_length
+    def sample_videos(self, batchsize):
+        z = self.sample_z_video(batchsize)
 
-        z = self.sample_z_video(num_samples, video_len)
-
-        h = self.main(z.view(z.size(0), z.size(1), 1, 1))
-        h = h.view(h.size(0) // video_len, video_len, 1, h.size(3), h.size(3))
+        h = self.main(z.view(batchsize*self.video_length, self.dim_z, 1, 1))
+        h = h.view(batchsize, self.video_length, 1, 64, 64)
 
         h = h.permute(0, 2, 1, 3, 4)
 
         return h 
 
-    def sample_images(self, num_samples):
-        z = self.sample_z_video(num_samples * self.video_length * 2)
+    def sample_images(self, batchsize):
+        z = self.sample_z_video(batchsize * self.video_length * 2)
 
         z = z.view(z.size(0), z.size(1), 1, 1)
         h = self.main(z)
 
         return h
 
-    def get_gru_initial_state(self, num_samples):
-        return Variable(T.FloatTensor(num_samples, self.dim_z_motion).normal_())
+    def get_gru_initial_state(self, batchsize):
+        return Variable(T.FloatTensor(batchsize, self.dim_z_motion).normal_())
 
-    def get_iteration_noise(self, num_samples):
-        return Variable(T.FloatTensor(num_samples, self.dim_z_motion).normal_())
-
-def init_normal(layer):
-    if type(layer) in [nn.Conv2d, nn.ConvTranspose2d]:
-        # print(layer)
-        init.normal_(layer.weight.data, 0, 0.02)
-    elif type(layer) in [nn.BatchNorm2d]:
-        init.normal_(layer.weight.data, 1.0, 0.02)
-        init.constant_(layer.bias.data, 0.0)
+    def get_iteration_noise(self, batchsize):
+        return Variable(T.FloatTensor(batchsize, self.dim_z_motion).normal_())
 
 class Inconv(nn.Module):
     def __init__(self, in_ch, out_ch):
