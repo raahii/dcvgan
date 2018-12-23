@@ -208,8 +208,7 @@ class ColorVideoGenerator(nn.Module):
 
     def forward(self, x):
         # video to images
-        C, T, H, W = x.shape
-        x = x.permute(1, 0, 2, 3)
+        T, C, H, W = x.shape
         
         # prepare z
         z = np.random.normal(0, 1, (self.dim_z))
@@ -235,13 +234,13 @@ class ColorVideoGenerator(nn.Module):
             h = torch.cat([h, hs[-i]], 1)
             h = layer(h)
         h = self.outconv(torch.cat([h, hs[0]], 1))
-        h = h.permute(1, 0, 2, 3)
 
         return h
 
     def forward_videos(self, xs):
-        ys = [self(x) for x in xs]
-        ys = torch.stack(ys)
+        xs = xs.permute(0, 2, 1, 3, 4) #(B,C,T,H,W)->(B,T,C,H,W)
+        ys = torch.stack([self(x) for x in xs])
+        ys = ys.permute(0, 2, 1, 3, 4) #(B,T,C,H,W)->(B,C,T,H,W)
 
         return ys
 

@@ -18,18 +18,19 @@ import utils
 class Trainer(object):
     def __init__(self, dataloader, configs):
         self.batchsize = configs["batchsize"]
-        self.epoch_iters = len(dataloader)
+        self.n_epochs = configs["n_epochs"]
         self.video_length = configs["video_length"]
 
         self.dataloader = dataloader
 
-        self.num_log, self.rows_log, self.cols_log = 36, 6, 6
+        self.num_log, self.rows_log, self.cols_log = 9, 3, 3
         self.dataloader_log = DataLoader(
-                                self.dataloader.dataset, 
-                                batch_size=self.num_log,
-                                num_workers=1,
-                                shuffle=True,
-                                drop_last=True,
+                                    self.dataloader.dataset, 
+                                    batch_size=self.num_log,
+                                    num_workers=1,
+                                    shuffle=True,
+                                    drop_last=True,
+                                    pin_memory=True,
                                 )
         
         self.log_dir = Path(configs["log_dir"]) / configs["experiment_name"]
@@ -49,7 +50,7 @@ class Trainer(object):
         self.configs = configs
         
         # copy config file to log directory
-        shutil.copy(configs["config_path"], str(self.log_dir))
+        shutil.copy(configs["config_path"], str(self.log_dir/'config.yml'))
  
         # fix seed
         np.random.seed(configs['seed'])
@@ -91,7 +92,8 @@ class Trainer(object):
         # (1, C, T, H*rows, W*cols)
         grid_c = utils.make_video_grid(color_videos, self.rows_log, self.cols_log)
         grid_d = utils.make_video_grid(depth_videos, self.rows_log, self.cols_log)
-
+        
+        # concat them in horizontal direction
         grid_video = np.concatenate([grid_d, grid_c], axis=-1)
         self.logger.tf_log_video(tag, grid_video, iteration)
 
@@ -118,12 +120,12 @@ class Trainer(object):
         # training loop
         logger = self.logger
         iteration = 1
-        for i in range(configs["n_epochs"]):
+        for i in range(self.n_epochs):
             for x_real in iter(self.dataloader):
                 #--------------------
                 # phase generator
                 #--------------------
-                dgen.train(); cgen.train(), opt_gen.zero_grad()
+                dgen.train(); cgen.train(); opt_gen.zero_grad()
 
                 # fake batch
                 d = dgen.sample_videos(self.batchsize)
@@ -146,14 +148,14 @@ class Trainer(object):
                 vdis.train(); opt_vdis.zero_grad()
 
                 # real batch
-                x_fake = x_fake.detach()
                 x_real = x_real.float()
-                x_real = x_real.cuda() if self.use_cuda else x_fake
+                x_real = x_real.cuda() if self.use_cuda else x_real
                 x_real = Variable(x_real)
 
                 y_real_i = idis(x_real[:,:,t_rand])
                 y_real_v = vdis(x_real)
                 
+                x_fake = x_fake.detach()
                 y_fake_i = idis(x_fake[:,:,t_rand])
                 y_fake_v = vdis(x_fake)
                 
@@ -218,4 +220,3 @@ class Trainer(object):
             logger.update("epoch", 1)
 
         snapshot_models(dgen, cgen, idis, vdis, iteration)
-
