@@ -1,4 +1,5 @@
 import time
+import shutil
 from pathlib import Path
 import pickle
 
@@ -46,18 +47,22 @@ class Trainer(object):
         self.use_cuda = torch.cuda.is_available()
         self.device = self.use_cuda and torch.device('cuda') or torch.device('cpu')
         self.configs = configs
-
+        
+        # copy config file to log directory
+        shutil.copy(configs["config_path"], str(self.log_dir))
+ 
+        # fix seed
         np.random.seed(configs['seed'])
         torch.manual_seed(configs['seed'])
         torch.cuda.manual_seed_all(configs['seed'])
         torch.backends.cudnn.benchmark = True
 
-    def create_optimizer(self, model, lr, decay):
+    def create_optimizer(self, params, lr, decay):
         return optim.Adam(
-                model.parameters(),
-                lr=lr,
-                betas=(0.5, 0.999),
-                weight_decay=decay,
+                    params,
+                    lr=lr,
+                    betas=(0.5, 0.999),
+                    weight_decay=decay,
                 )
 
     def compute_dis_loss(self, y_real, y_fake):
@@ -88,7 +93,7 @@ class Trainer(object):
         grid_d = utils.make_video_grid(depth_videos, self.rows_log, self.cols_log)
 
         grid_video = np.concatenate([grid_d, grid_c], axis=-1)
-        self.logger.log_video(tag, grid_video, iteration)
+        self.logger.tf_log_video(tag, grid_video, iteration)
 
     def train(self, dgen, cgen, idis, vdis):
         def snapshot_models(dgen, cgen, idis, vdis, i):
@@ -105,10 +110,10 @@ class Trainer(object):
         
         # create optimizers
         configs = self.configs
-        opt_dgen = self.create_optimizer(dgen, **configs["dgen"]["optimizer"])
-        opt_cgen = self.create_optimizer(cgen, **configs["cgen"]["optimizer"])
-        opt_idis = self.create_optimizer(idis, **configs["idis"]["optimizer"])
-        opt_vdis = self.create_optimizer(vdis, **configs["vdis"]["optimizer"])
+        gen_params = list(dgen.parameters()) + list(cgen.parameters())
+        opt_gen  = self.create_optimizer(gen_params, **configs["gen"]["optimizer"])
+        opt_idis = self.create_optimizer(idis.parameters(), **configs["idis"]["optimizer"])
+        opt_vdis = self.create_optimizer(vdis.parameters(), **configs["vdis"]["optimizer"])
 
         # training loop
         logger = self.logger
@@ -118,8 +123,7 @@ class Trainer(object):
                 #--------------------
                 # phase generator
                 #--------------------
-                dgen.train();  opt_dgen.zero_grad()
-                cgen.train();  opt_cgen.zero_grad()
+                dgen.train(); cgen.train(), opt_gen.zero_grad()
 
                 # fake batch
                 d = dgen.sample_videos(self.batchsize)
@@ -133,13 +137,11 @@ class Trainer(object):
                 loss_gen = self.compute_gen_loss(y_fake_i, y_fake_v)
 
                 # update weights
-                loss_gen.backward(); opt_cgen.step(); opt_dgen.step()
-
+                loss_gen.backward(); opt_gen.step()
 
                 #--------------------
                 # phase discriminator
                 #--------------------
-                
                 idis.train(); opt_idis.zero_grad()
                 vdis.train(); opt_vdis.zero_grad()
 
@@ -190,7 +192,8 @@ class Trainer(object):
                         c = cgen.forward_videos(d)
                         d = d.repeat(1,3,1,1,1) # to have 3-channels
                         self.log_rgbd_videos(c, d, 'fake_samples', iteration)
-                        self.logger.tf_log_histgram(c[:,0:3,0], 'colorspace_fake', iteration)
+                        self.logger.tf_log_histgram(d[:,:,0], 'depthspace_fake', iteration)
+                        self.logger.tf_log_histgram(c[:,:,0], 'colorspace_fake', iteration)
 
                         # fake samples with fixed depth
                         d = dgen.sample_videos(1)
@@ -203,7 +206,8 @@ class Trainer(object):
                         v = next(self.dataloader_log.__iter__())
                         c, d = v[:, 0:3], v[:, 3:4].repeat(1,3,1,1,1)
                         self.log_rgbd_videos(c, d, 'real_samples', iteration)
-                        self.logger.tf_log_histgram(c[:,0:3,0], 'colorspace_real', iteration)
+                        self.logger.tf_log_histgram(d[:,:,0], 'depthspace_real', iteration)
+                        self.logger.tf_log_histgram(c[:,:,0], 'colorspace_real', iteration)
                 
                 # evaluate generated samples
                 # if iteration % configs["evaluation_interval"] == 0:

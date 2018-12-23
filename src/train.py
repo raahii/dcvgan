@@ -34,6 +34,7 @@ def main():
     # parse config yaml
     with open(args.config) as f:
         configs = yaml.load(f)
+    configs["config_path"] = args.config
     
     # prepare dataset
     dataset = prepare_dataset(configs)
@@ -43,17 +44,18 @@ def main():
                     num_workers=configs["dataset"]["n_workers"],
                     shuffle=True, 
                     drop_last=True, 
+                    pin_memory=True,
                     )
     
     # prepare models
     dgen = DepthVideoGenerator(
-            configs["dgen"]["dim_z_content"],
-            configs["dgen"]["dim_z_motion"],
+            configs["gen"]["dim_z_content"],
+            configs["gen"]["dim_z_motion"],
             configs["video_length"],
             )
 
     cgen = ColorVideoGenerator(
-            configs["cgen"]["dim_z_color"],
+            configs["gen"]["dim_z_color"],
             )
 
     idis = ImageDiscriminator(
@@ -68,16 +70,9 @@ def main():
             configs["vdis"]["ndf"],
             )
 
-    models = {
-        'dgen': dgen,
-        'cgen': cgen,
-        'idis': idis,
-        'vdis': vdis,
-    }
-     
     # start training
     trainer = Trainer(dataloader, configs)
-    trainer.train(**models)
+    trainer.train(dgen, cgen, idis, vdis)
 
 if __name__ == "__main__":
     main()

@@ -1,9 +1,9 @@
 # experiment configs
-experiment_name: "cvim09"
+experiment_name: "cvim09_03"
 
 # basic configs
 batchsize: 20
-iterations: 50000
+n_epochs: 40
 seed: 0
 
 video_length: 16
@@ -26,13 +26,9 @@ dataset:
   number_limit: -1
 
 # model configs
-dgen:
+gen:
   dim_z_content: 40
   dim_z_motion: 10
-  optimizer:
-    lr: 0.0002
-    decay: 0.00001
-cgen:
   dim_z_color: 10
   optimizer:
     lr: 0.0002

@@ -115,7 +115,10 @@ class DepthVideoGenerator(nn.Module):
 def init_normal(layer):
     if type(layer) in [nn.Conv2d, nn.ConvTranspose2d]:
         # print(layer)
-        init.normal_(layer.weight, mean=0, std=0.02)
+        init.normal_(layer.weight.data, 0, 0.02)
+    elif type(layer) in [nn.BatchNorm2d]:
+        init.normal_(layer.weight.data, 1.0, 0.02)
+        init.constant_(layer.bias.data, 0.0)
 
 class Inconv(nn.Module):
     def __init__(self, in_ch, out_ch):
@@ -147,20 +150,6 @@ class DownBlock(nn.Module):
         x = self.main(x)
         return x
 
-class Outconv(nn.Module):
-    def __init__(self, in_ch, out_ch):
-        super(Outconv, self).__init__()
-
-        self.main = nn.Sequential(
-            nn.ConvTranspose2d(in_ch, out_ch, kernel_size=3,
-                                stride=1, padding=1, bias=False),
-        )
-        self.main.apply(init_normal)
-
-    def forward(self, x):
-        x = self.main(x)
-        return x
-
 class UpBlock(nn.Module):
     def __init__(self, in_ch, out_ch):
         super(UpBlock, self).__init__()
@@ -177,9 +166,24 @@ class UpBlock(nn.Module):
         x = self.main(x)
         return x
 
+class Outconv(nn.Module):
+    def __init__(self, in_ch, out_ch):
+        super(Outconv, self).__init__()
+
+        self.main = nn.Sequential(
+            nn.ConvTranspose2d(in_ch, out_ch, kernel_size=3,
+                                stride=1, padding=1, bias=False),
+            nn.Tanh(),
+        )
+        self.main.apply(init_normal)
+
+    def forward(self, x):
+        x = self.main(x)
+        return x
+
 class ColorVideoGenerator(nn.Module):
     n_down_blocks = 6
-    n_up_blocks = 6
+    n_up_blocks   = 6
     use_cuda = torch.cuda.is_available()
     def __init__(self, dim_z, ngf=64):
         super(ColorVideoGenerator, self).__init__()
@@ -207,13 +211,13 @@ class ColorVideoGenerator(nn.Module):
         C, T, H, W = x.shape
         x = x.permute(1, 0, 2, 3)
         
-        # replicate z along time axis
+        # prepare z
         z = np.random.normal(0, 1, (self.dim_z))
         z = torch.from_numpy(z).float()
         z = z.unsqueeze(0).repeat(T, 1) # (T, dim_z)
         z = z.unsqueeze(-1).unsqueeze(-1) # (T, dim_z, 1, 1)
         if self.use_cuda:
-            z = z.cuda()
+            z = z.cuda(non_blocking=True)
 
         # down
         hs = [self.inconv(x)]
@@ -290,27 +294,28 @@ class VideoDiscriminator(nn.Module):
         self.use_noise = use_noise
 
         self.conv_c = nn.Sequential(
-            nn.Conv3d(3, ndf//2, 4, stride=(1, 2, 2), padding=(0, 1, 1), bias=False),
+            nn.Conv3d(3, ndf//2, 4, stride=(1,2,2), padding=(0,1,1), bias=False),
             nn.LeakyReLU(0.2, inplace=True),
         )
 
         self.conv_d = nn.Sequential(
-            nn.Conv3d(1, ndf//2, 4, stride=(1, 2, 2), padding=(0, 1, 1), bias=False),
+            nn.Conv3d(1, ndf//2, 4, stride=(1,2,2), padding=(0,1,1), bias=False),
             nn.LeakyReLU(0.2, inplace=True),
         )
 
         self.main = nn.Sequential(
             Noise(use_noise, sigma=noise_sigma),
-            nn.Conv3d(ndf, ndf * 2, 4, stride=(1, 2, 2), padding=(0, 1, 1), bias=False),
+            nn.Conv3d(ndf, ndf * 2, 4, stride=(1,2,2), padding=(0,1,1), bias=False),
             nn.BatchNorm3d(ndf * 2),
             nn.LeakyReLU(0.2, inplace=True),
 
             Noise(use_noise, sigma=noise_sigma),
-            nn.Conv3d(ndf * 2, ndf * 4, 4, stride=(1, 2, 2), padding=(0, 1, 1), bias=False),
+            nn.Conv3d(ndf * 2, ndf * 4, 4, stride=(1,2,2), padding=(0,1,1), bias=False),
             nn.BatchNorm3d(ndf * 4),
             nn.LeakyReLU(0.2, inplace=True),
 
-            nn.Conv3d(ndf * 4, 1, 4, stride=(1, 2, 2), padding=(0, 1, 1), bias=False),
+            Noise(use_noise, sigma=noise_sigma),
+            nn.Conv3d(ndf * 4, 1, 4, stride=(1,2,2), padding=(0,1,1), bias=False),
         )
 
     def forward(self, x):
@@ -337,3 +342,5 @@ if __name__=="__main__":
     x = torch.ones(input_img_shape)
     x = net.forward_videos(x)
     print(x.shape, out_img_shape)
+
+    print(ColorVideoGenerator.parameters())

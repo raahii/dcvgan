@@ -72,7 +72,7 @@ class Logger(object):
     def tf_log(self):
         step = self.metrics["iteration"]
         for name in ["loss_gen", "loss_idis", "loss_vdis"]:
-            value = self.metrics[name]
+            value = self.metrics[name]/self.log_interval
             self.writer.add_scalar(name, value, step)
 
     def tf_log_video(self, name, videos, step):
