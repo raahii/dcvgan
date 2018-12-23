@@ -293,6 +293,11 @@ class ImageDiscriminator(nn.Module):
             nn.Conv2d(ndf * 4, 1, 4, 2, 1, bias=False),
         )
 
+    def forward_dummy(self):
+        shape = (2, 4, 64, 64)
+        x = Variable(T.FloatTensor(*shape).normal_())
+        return self(x)
+
     def forward(self, x):
         hc = self.conv_c(x[:,0:3])
         hd = self.conv_d(x[:,3:4])
@@ -333,6 +338,11 @@ class VideoDiscriminator(nn.Module):
             nn.Conv3d(ndf * 4, 1, 4, stride=(1,2,2), padding=(0,1,1), bias=False),
         )
 
+    def forward_dummy(self):
+        shape = (2, 4, 16, 64, 64)
+        x = Variable(T.FloatTensor(*shape).normal_())
+        return self(x)
+
     def forward(self, x):
         hc = self.conv_c(x[:,0:3])
         hd = self.conv_d(x[:,3:4])
@@ -341,21 +351,8 @@ class VideoDiscriminator(nn.Module):
         return h
 
 if __name__=="__main__":
-    input_img_shape = (1, 16, 64, 64)
-    out_img_shape   = (3, 16, 64, 64)
-    net = ColorVideoGenerator(1, 3, 10)
-
-    # forward
-    x = torch.ones(input_img_shape)
-    x = net(x)
-    print(x.shape, out_img_shape)
-
-    # video batch forward
-    input_img_shape = (20, 1, 16, 64, 64)
-    out_img_shape   = (20, 3, 16, 64, 64)
-
-    x = torch.ones(input_img_shape)
-    x = net.forward_videos(x)
-    print(x.shape, out_img_shape)
-
-    print(ColorVideoGenerator.parameters())
+    print(dict(ColorVideoGenerator(10).named_parameters()).keys())
+    # print(DepthVideoGenerator(30,10,16).forward_dummy().shape)
+    # print(ColorVideoGenerator(10).forward_dummy().shape)
+    # print(ImageDiscriminator().forward_dummy().shape)
+    # print(VideoDiscriminator().forward_dummy().shape)

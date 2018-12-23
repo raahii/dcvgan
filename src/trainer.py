@@ -2,6 +2,7 @@ import time
 import shutil
 from pathlib import Path
 import pickle
+from graphviz import Digraph
 
 import numpy as np
 
@@ -9,8 +10,8 @@ import torch
 from torch import nn
 from torch.autograd import Variable
 import torch.optim as optim
-
 from torch.utils.data import DataLoader
+from torchviz.dot import make_dot
 
 from logger import Logger
 import utils
@@ -97,12 +98,23 @@ class Trainer(object):
         grid_video = np.concatenate([grid_d, grid_c], axis=-1)
         self.logger.tf_log_video(tag, grid_video, iteration)
 
+    def save_graph(self, model, name):
+        graph_dir = self.log_dir / 'graph'
+        graph_dir.mkdir(parents=True, exist_ok=True)
+        graph = make_dot(model.forward_dummy().mean(), dict(model.named_parameters()))
+        graph.render(str(graph_dir/name))
+
     def train(self, dgen, cgen, idis, vdis):
         def snapshot_models(dgen, cgen, idis, vdis, i):
             torch.save(dgen.state_dict(), str(self.log_dir/'dgen_{:05d}.pytorch'.format(i)))
             torch.save(cgen.state_dict(), str(self.log_dir/'cgen_{:05d}.pytorch'.format(i)))
             torch.save(idis.state_dict(), str(self.log_dir/'idis_{:05d}.pytorch'.format(i)))
             torch.save(vdis.state_dict(), str(self.log_dir/'vdis_{:05d}.pytorch'.format(i)))
+        
+        self.save_graph(dgen, 'dgen')
+        self.save_graph(cgen, 'cgen')
+        self.save_graph(idis, 'idis')
+        self.save_graph(vdis, 'vdis')
 
         if self.use_cuda:
             dgen.cuda()
