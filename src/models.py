@@ -1,3 +1,5 @@
+import numpy as np
+
 import torch
 import torch.nn as nn
 import torch.nn.parallel
@@ -5,13 +7,18 @@ import torch.utils.data
 import torch.nn.init as init
 from torch.autograd import Variable
 
-import numpy as np
-
 if torch.cuda.is_available():
     T = torch.cuda
 else:
     T = torch
 
+def init_normal(layer):
+    if type(layer) in [nn.Conv2d, nn.ConvTranspose2d]:
+        # print(layer)
+        init.normal_(layer.weight.data, 0, 0.02)
+    elif type(layer) in [nn.BatchNorm2d]:
+        init.normal_(layer.weight.data, 1.0, 0.02)
+        init.constant_(layer.bias.data, 0.0)
 
 class Noise(nn.Module):
     def __init__(self, use_noise, sigma=0.2):
@@ -117,40 +124,50 @@ class Inconv(nn.Module):
         self.main = nn.Sequential(
             nn.Conv2d(in_ch, out_ch, kernel_size=3,
                       stride=1, padding=1, bias=False),
+            nn.LeakyReLU(inplace=True),
         )
-        self.main.apply(init_normal)
 
     def forward(self, x):
         x = self.main(x)
         return x
 
 class DownBlock(nn.Module):
-    def __init__(self, in_ch, out_ch):
+    def __init__(self, in_ch, out_ch, dropout=False):
         super(DownBlock, self).__init__()
-
-        self.main = nn.Sequential(
+        
+        layers = [
             nn.Conv2d(in_ch, out_ch, kernel_size=4,
                       stride=2, padding=1, bias=False),
             nn.BatchNorm2d(out_ch),
-            nn.LeakyReLU(0.2, inplace=True)
-        )
-        self.main.apply(init_normal)
+            nn.LeakyReLU(0.2, inplace=True),
+        ]
+
+        if dropout:
+            # between batchnorm and activation
+            layers.insert(2, nn.Dropout2d(0.5, inplace=True))
+
+        self.main = nn.Sequential(*layers)
 
     def forward(self, x):
         x = self.main(x)
         return x
 
 class UpBlock(nn.Module):
-    def __init__(self, in_ch, out_ch):
+    def __init__(self, in_ch, out_ch, dropout=False):
         super(UpBlock, self).__init__()
 
-        self.main = nn.Sequential(
+        layers = [
             nn.ConvTranspose2d(in_ch, out_ch, kernel_size=4,
                       stride=2, padding=1, bias=False),
             nn.BatchNorm2d(out_ch),
             nn.ReLU(inplace=True),
-        )
-        self.main.apply(init_normal)
+        ]
+
+        if dropout:
+            # between batchnorm and activation
+            layers.insert(2, nn.Dropout2d(0.5, inplace=True))
+
+        self.main = nn.Sequential(*layers)
 
     def forward(self, x):
         x = self.main(x)
@@ -165,64 +182,73 @@ class Outconv(nn.Module):
                                 stride=1, padding=1, bias=False),
             nn.Tanh(),
         )
-        self.main.apply(init_normal)
 
     def forward(self, x):
         x = self.main(x)
         return x
 
 class ColorVideoGenerator(nn.Module):
-    n_down_blocks = 6
-    n_up_blocks   = 6
-    use_cuda = torch.cuda.is_available()
     def __init__(self, dim_z, ngf=64):
         super(ColorVideoGenerator, self).__init__()
 
         self.dim_z = dim_z
-
+        
         self.inconv = Inconv(1, ngf*1)
-        self.down1  = DownBlock(ngf*1, ngf*1)
-        self.down2  = DownBlock(ngf*1, ngf*2)
-        self.down3  = DownBlock(ngf*2, ngf*4)
-        self.down4  = DownBlock(ngf*4, ngf*4)
-        self.down5  = DownBlock(ngf*4, ngf*4)
-        self.down6  = DownBlock(ngf*4, ngf*4)
+        self.down_blocks = [
+            DownBlock(ngf*1, ngf*1),
+            DownBlock(ngf*1, ngf*2),
+            DownBlock(ngf*2, ngf*4),
+            DownBlock(ngf*4, ngf*4),
+            DownBlock(ngf*4, ngf*4),
+            DownBlock(ngf*4, ngf*4),
+        ]
 
-        self.up1     = UpBlock(ngf*4+dim_z, ngf*4)
-        self.up2     = UpBlock(ngf*8      , ngf*4)
-        self.up3     = UpBlock(ngf*8      , ngf*4)
-        self.up4     = UpBlock(ngf*8      , ngf*2)
-        self.up5     = UpBlock(ngf*4      , ngf*1)
-        self.up6     = UpBlock(ngf*2      , ngf*1)
+        self.up_blocks = [
+            UpBlock(ngf*4+dim_z, ngf*4, dropout=True),
+            UpBlock(ngf*8      , ngf*4, dropout=True),
+            UpBlock(ngf*8      , ngf*4),
+            UpBlock(ngf*8      , ngf*2),
+            UpBlock(ngf*4      , ngf*1),
+            UpBlock(ngf*2      , ngf*1),
+        ]
+
         self.outconv = Outconv(ngf*2, 3)
+
+        self.n_down_blocks = len(self.down_blocks)
+        self.n_up_blocks   = len(self.up_blocks)
+
+        self.apply(init_normal)
+
+    def make_hidden(self, batchsize):
+        z = T.FloatTensor(1, self.dim_z).normal_()
+        z = z.repeat(batchsize, 1) # (B, dim_z)
+        z = z.unsqueeze(-1).unsqueeze(-1) # (B, dim_z, 1, 1)
+
+        return Variable(z)
+
+    def forward_dummy(self):
+        shape = (2, 1, 64, 64)
+        x = Variable(T.FloatTensor(*shape).normal_())
+        return self(x)
 
     def forward(self, x):
         # video to images
-        T, C, H, W = x.shape
+        B, C, H, W = x.shape
         
-        # prepare z
-        z = np.random.normal(0, 1, (self.dim_z))
-        z = torch.from_numpy(z).float()
-        z = z.unsqueeze(0).repeat(T, 1) # (T, dim_z)
-        z = z.unsqueeze(-1).unsqueeze(-1) # (T, dim_z, 1, 1)
-        if self.use_cuda:
-            z = z.cuda(non_blocking=True)
-
         # down
         hs = [self.inconv(x)]
-        for i in range(1, self.n_down_blocks+1):
-            layer = eval(f"self.down{i}")
-            hs.append(layer(hs[-1]))
+        for i in range(self.n_down_blocks):
+            hs.append(self.down_blocks[i](hs[-1]))
         
         # concat latent variable
-        hs[-1] = torch.cat([hs[-1], z], 1)
+        z = self.make_hidden(B)
+        h = torch.cat([hs[-1], z], 1)
 
         # up
-        h = self.up1(hs[-1])
-        for i in range(2, self.n_up_blocks+1):
-            layer = eval(f"self.up{i}")
-            h = torch.cat([h, hs[-i]], 1)
-            h = layer(h)
+        h = self.up_blocks[0](h)
+        for i in range(1, self.n_up_blocks):
+            h = torch.cat([h, hs[-i-1]], 1)
+            h = self.up_blocks[i](h)
         h = self.outconv(torch.cat([h, hs[0]], 1))
 
         return h
