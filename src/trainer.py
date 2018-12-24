@@ -24,7 +24,7 @@ class Trainer(object):
 
         self.dataloader = dataloader
 
-        self.num_log, self.rows_log, self.cols_log = 9, 3, 3
+        self.num_log, self.rows_log, self.cols_log = 25, 5, 5
         self.dataloader_log = DataLoader(
                                     self.dataloader.dataset, 
                                     batch_size=self.num_log,
@@ -110,17 +110,18 @@ class Trainer(object):
             torch.save(cgen.state_dict(), str(self.log_dir/'cgen_{:05d}.pytorch'.format(i)))
             torch.save(idis.state_dict(), str(self.log_dir/'idis_{:05d}.pytorch'.format(i)))
             torch.save(vdis.state_dict(), str(self.log_dir/'vdis_{:05d}.pytorch'.format(i)))
-        
-        self.save_graph(dgen, 'dgen')
-        self.save_graph(cgen, 'cgen')
-        self.save_graph(idis, 'idis')
-        self.save_graph(vdis, 'vdis')
 
         if self.use_cuda:
             dgen.cuda()
             cgen.cuda()
             idis.cuda()
             vdis.cuda()
+        
+        # save the graphs
+        self.save_graph(dgen, 'dgen')
+        self.save_graph(cgen, 'cgen')
+        self.save_graph(idis, 'idis')
+        self.save_graph(vdis, 'vdis')
         
         # create optimizers
         configs = self.configs

@@ -101,14 +101,6 @@ class DepthVideoGenerator(nn.Module):
 
         h = h.permute(0, 2, 1, 3, 4)
 
-        return h 
-
-    def sample_images(self, batchsize):
-        z = self.sample_z_video(batchsize * self.video_length * 2)
-
-        z = z.view(z.size(0), z.size(1), 1, 1)
-        h = self.main(z)
-
         return h
 
     def get_gru_initial_state(self, batchsize):
@@ -194,23 +186,24 @@ class ColorVideoGenerator(nn.Module):
         self.dim_z = dim_z
         
         self.inconv = Inconv(1, ngf*1)
-        self.down_blocks = [
+        self.down_blocks = nn.ModuleList([
             DownBlock(ngf*1, ngf*1),
             DownBlock(ngf*1, ngf*2),
             DownBlock(ngf*2, ngf*4),
             DownBlock(ngf*4, ngf*4),
             DownBlock(ngf*4, ngf*4),
             DownBlock(ngf*4, ngf*4),
-        ]
+        ])
 
-        self.up_blocks = [
-            UpBlock(ngf*4+dim_z, ngf*4, dropout=True),
+        self.up_blocks = nn.ModuleList([
+            # UpBlock(ngf*4+dim_z, ngf*4, dropout=True),
+            UpBlock(ngf*4      , ngf*4, dropout=True),
             UpBlock(ngf*8      , ngf*4, dropout=True),
             UpBlock(ngf*8      , ngf*4),
             UpBlock(ngf*8      , ngf*2),
             UpBlock(ngf*4      , ngf*1),
             UpBlock(ngf*2      , ngf*1),
-        ]
+        ])
 
         self.outconv = Outconv(ngf*2, 3)
 
@@ -240,9 +233,11 @@ class ColorVideoGenerator(nn.Module):
         for i in range(self.n_down_blocks):
             hs.append(self.down_blocks[i](hs[-1]))
         
-        # concat latent variable
-        z = self.make_hidden(B)
-        h = torch.cat([hs[-1], z], 1)
+        # # concat latent variable
+        # z = self.make_hidden(B)
+        # h = torch.cat([hs[-1], z], 1)
+
+        h = hs[-1]
 
         # up
         h = self.up_blocks[0](h)
@@ -254,9 +249,12 @@ class ColorVideoGenerator(nn.Module):
         return h
 
     def forward_videos(self, xs):
-        xs = xs.permute(0, 2, 1, 3, 4) #(B,C,T,H,W)->(B,T,C,H,W)
-        ys = torch.stack([self(x) for x in xs])
-        ys = ys.permute(0, 2, 1, 3, 4) #(B,T,C,H,W)->(B,C,T,H,W)
+        B, _, T, _, _ = xs.shape
+        xs = xs.permute(0, 2, 1, 3, 4)
+        xs = xs.view(B*T, 1, 64, 64)
+        ys = self(xs)
+        ys = ys.view(B, T, 3, 64, 64)
+        ys = ys.permute(0, 2, 1, 3, 4)
 
         return ys
 

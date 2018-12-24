@@ -8,5 +8,6 @@ logzero
 opencv-python
 scikit-video
 tensorboardX
+git+https://github.com/szagoruyko/pytorchviz
 
 face_recognition
