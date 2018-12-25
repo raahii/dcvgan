@@ -59,6 +59,6 @@ def write_video(video_tensor, path):
         path to the video
     """
     writer = skvideo.io.FFmpegWriter(str(path))
-    for frame in video:
+    for frame in video_tensor:
         writer.writeFrame(frame)
     writer.close()
