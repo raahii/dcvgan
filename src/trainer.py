@@ -104,12 +104,39 @@ class Trainer(object):
         graph = make_dot(model.forward_dummy().mean(), dict(model.named_parameters()))
         graph.render(str(graph_dir/name))
 
+    def generate_samples(self, dgen, cgen, iteration):
+        dgen.eval(); cgen.eval()
+
+        with torch.no_grad():
+            # fake samples
+            d = dgen.sample_videos(self.num_log)
+            c = cgen.forward_videos(d)
+            d = d.repeat(1,3,1,1,1) # to have 3-channels
+            self.log_rgbd_videos(c, d, 'fake_samples', iteration)
+            self.logger.tf_log_histgram(d[:,:,0], 'depthspace_fake', iteration)
+            self.logger.tf_log_histgram(c[:,:,0], 'colorspace_fake', iteration)
+
+            # fake samples with fixed depth
+            d = dgen.sample_videos(1)
+            d = d.repeat(self.num_log,1,1,1,1)
+            c = cgen.forward_videos(d)
+            d = d.repeat(1,3,1,1,1)
+            self.log_rgbd_videos(c, d, 'fake_samples_fixed_depth', iteration)
+
+            # real samples
+            v = next(self.dataloader_log.__iter__())
+            c, d = v[:, 0:3], v[:, 3:4].repeat(1,3,1,1,1)
+            self.log_rgbd_videos(c, d, 'real_samples', iteration)
+            self.logger.tf_log_histgram(d[:,:,0], 'depthspace_real', iteration)
+            self.logger.tf_log_histgram(c[:,:,0], 'colorspace_real', iteration)
+
+    def snapshot_models(self, dgen, cgen, idis, vdis, i):
+        torch.save(dgen.state_dict(), str(self.log_dir/'dgen_{:05d}.pytorch'.format(i)))
+        torch.save(cgen.state_dict(), str(self.log_dir/'cgen_{:05d}.pytorch'.format(i)))
+        torch.save(idis.state_dict(), str(self.log_dir/'idis_{:05d}.pytorch'.format(i)))
+        torch.save(vdis.state_dict(), str(self.log_dir/'vdis_{:05d}.pytorch'.format(i)))
+
     def train(self, dgen, cgen, idis, vdis):
-        def snapshot_models(dgen, cgen, idis, vdis, i):
-            torch.save(dgen.state_dict(), str(self.log_dir/'dgen_{:05d}.pytorch'.format(i)))
-            torch.save(cgen.state_dict(), str(self.log_dir/'cgen_{:05d}.pytorch'.format(i)))
-            torch.save(idis.state_dict(), str(self.log_dir/'idis_{:05d}.pytorch'.format(i)))
-            torch.save(vdis.state_dict(), str(self.log_dir/'vdis_{:05d}.pytorch'.format(i)))
 
         if self.use_cuda:
             dgen.cuda()
@@ -195,34 +222,11 @@ class Trainer(object):
 
                 # snapshot models
                 if iteration % configs["snapshot_interval"] == 0:
-                    snapshot_models(dgen, cgen, idis, vdis, iteration)
+                    self.snapshot_models(dgen, cgen, idis, vdis, iteration)
 
                 # log samples
                 if iteration % configs["log_samples_interval"] == 0:
-                    dgen.eval(); cgen.eval()
-
-                    with torch.no_grad():
-                        # fake samples
-                        d = dgen.sample_videos(self.num_log)
-                        c = cgen.forward_videos(d)
-                        d = d.repeat(1,3,1,1,1) # to have 3-channels
-                        self.log_rgbd_videos(c, d, 'fake_samples', iteration)
-                        self.logger.tf_log_histgram(d[:,:,0], 'depthspace_fake', iteration)
-                        self.logger.tf_log_histgram(c[:,:,0], 'colorspace_fake', iteration)
-
-                        # fake samples with fixed depth
-                        d = dgen.sample_videos(1)
-                        d = d.repeat(self.num_log,1,1,1,1)
-                        c = cgen.forward_videos(d)
-                        d = d.repeat(1,3,1,1,1)
-                        self.log_rgbd_videos(c, d, 'fake_samples_fixed_depth', iteration)
-
-                        # real samples
-                        v = next(self.dataloader_log.__iter__())
-                        c, d = v[:, 0:3], v[:, 3:4].repeat(1,3,1,1,1)
-                        self.log_rgbd_videos(c, d, 'real_samples', iteration)
-                        self.logger.tf_log_histgram(d[:,:,0], 'depthspace_real', iteration)
-                        self.logger.tf_log_histgram(c[:,:,0], 'colorspace_real', iteration)
+                    self.generate_samples(dgen, cgen, iteration)
                 
                 # evaluate generated samples
                 # if iteration % configs["evaluation_interval"] == 0:
@@ -232,4 +236,5 @@ class Trainer(object):
                 logger.update("iteration", 1)
             logger.update("epoch", 1)
 
-        snapshot_models(dgen, cgen, idis, vdis, iteration)
+        self.snapshot_models(dgen, cgen, idis, vdis, iteration)
+        self.generate_samples(dgen, cgen, iteration)

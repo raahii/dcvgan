@@ -18,6 +18,7 @@ def prepare_dataset(configs):
         raise NotImplemented
     
     return VideoDataset(
+            configs["dataset"]["name"],
             Path(configs["dataset"]["path"]),
             eval(f'preprocess_{configs["dataset"]["name"]}_dataset'),
             configs['video_length'], 

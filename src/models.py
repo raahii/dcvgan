@@ -63,9 +63,6 @@ class DepthVideoGenerator(nn.Module):
 
         self.apply(init_normal)
 
-    def forward_dummy(self):
-        return self.sample_videos(2)
-
     def sample_z_m(self, batchsize):
         h_t = [self.get_gru_initial_state(batchsize)]
         for frame_num in range(self.video_length):
@@ -109,6 +106,9 @@ class DepthVideoGenerator(nn.Module):
     def get_iteration_noise(self, batchsize):
         return Variable(T.FloatTensor(batchsize, self.dim_z_motion).normal_())
 
+    def forward_dummy(self):
+        return self.sample_videos(2)
+
 class Inconv(nn.Module):
     def __init__(self, in_ch, out_ch):
         super(Inconv, self).__init__()
@@ -121,6 +121,7 @@ class Inconv(nn.Module):
 
     def forward(self, x):
         x = self.main(x)
+
         return x
 
 class DownBlock(nn.Module):
@@ -142,6 +143,7 @@ class DownBlock(nn.Module):
 
     def forward(self, x):
         x = self.main(x)
+
         return x
 
 class UpBlock(nn.Module):
@@ -163,6 +165,7 @@ class UpBlock(nn.Module):
 
     def forward(self, x):
         x = self.main(x)
+
         return x
 
 class Outconv(nn.Module):
@@ -177,6 +180,7 @@ class Outconv(nn.Module):
 
     def forward(self, x):
         x = self.main(x)
+
         return x
 
 class ColorVideoGenerator(nn.Module):
@@ -196,8 +200,7 @@ class ColorVideoGenerator(nn.Module):
         ])
 
         self.up_blocks = nn.ModuleList([
-            # UpBlock(ngf*4+dim_z, ngf*4, dropout=True),
-            UpBlock(ngf*4      , ngf*4, dropout=True),
+            UpBlock(ngf*4+dim_z, ngf*4, dropout=True),
             UpBlock(ngf*8      , ngf*4, dropout=True),
             UpBlock(ngf*8      , ngf*4),
             UpBlock(ngf*8      , ngf*2),
@@ -219,12 +222,7 @@ class ColorVideoGenerator(nn.Module):
 
         return Variable(z)
 
-    def forward_dummy(self):
-        shape = (2, 1, 64, 64)
-        x = Variable(T.FloatTensor(*shape).normal_())
-        return self(x)
-
-    def forward(self, x):
+    def forward(self, x, z):
         # video to images
         B, C, H, W = x.shape
         
@@ -233,11 +231,8 @@ class ColorVideoGenerator(nn.Module):
         for i in range(self.n_down_blocks):
             hs.append(self.down_blocks[i](hs[-1]))
         
-        # # concat latent variable
-        # z = self.make_hidden(B)
-        # h = torch.cat([hs[-1], z], 1)
-
-        h = hs[-1]
+        # concat latent variable
+        h = torch.cat([hs[-1], z], 1)
 
         # up
         h = self.up_blocks[0](h)
@@ -249,14 +244,26 @@ class ColorVideoGenerator(nn.Module):
         return h
 
     def forward_videos(self, xs):
-        B, _, T, _, _ = xs.shape
-        xs = xs.permute(0, 2, 1, 3, 4)
-        xs = xs.view(B*T, 1, 64, 64)
-        ys = self(xs)
-        ys = ys.view(B, T, 3, 64, 64)
-        ys = ys.permute(0, 2, 1, 3, 4)
+        B, C, T, H, W = xs.shape
+        zs = self.make_hidden(B)               # (B,    C, 1, 1)
+        zs = zs.unsqueeze(1).repeat(1,T,1,1,1) # (B, T, C, 1, 1)
+        zs = zs.view(B*T, -1, 1, 1)
+
+        xs = xs.permute(0, 2, 1, 3, 4) # (B, T, C, H, W)
+        xs = xs.view(B*T, C, H, W)
+        ys = self(xs, zs)
+        ys = ys.view(B, T, 3, H, W)
+        ys = ys.permute(0, 2, 1, 3, 4) # (B, C, T, H, W)
 
         return ys
+
+    def forward_dummy(self):
+        shape = (2, 1, 64, 64)
+        z = self.make_hidden(2)
+        x = Variable(T.FloatTensor(*shape).normal_())
+
+        return self(x, z)
+
 
 class ImageDiscriminator(nn.Module):
     def __init__(self, use_noise=False, noise_sigma=None, ndf=64):
@@ -291,11 +298,6 @@ class ImageDiscriminator(nn.Module):
             nn.Conv2d(ndf * 4, 1, 4, 2, 1, bias=False),
         )
 
-    def forward_dummy(self):
-        shape = (2, 4, 64, 64)
-        x = Variable(T.FloatTensor(*shape).normal_())
-        return self(x)
-
     def forward(self, x):
         hc = self.conv_c(x[:,0:3])
         hd = self.conv_d(x[:,3:4])
@@ -303,6 +305,12 @@ class ImageDiscriminator(nn.Module):
         h = self.main(h).squeeze()
 
         return h
+
+    def forward_dummy(self):
+        shape = (2, 4, 64, 64)
+        x = Variable(T.FloatTensor(*shape).normal_())
+
+        return self(x)
 
 
 class VideoDiscriminator(nn.Module):
@@ -336,17 +344,19 @@ class VideoDiscriminator(nn.Module):
             nn.Conv3d(ndf * 4, 1, 4, stride=(1,2,2), padding=(0,1,1), bias=False),
         )
 
-    def forward_dummy(self):
-        shape = (2, 4, 16, 64, 64)
-        x = Variable(T.FloatTensor(*shape).normal_())
-        return self(x)
-
     def forward(self, x):
         hc = self.conv_c(x[:,0:3])
         hd = self.conv_d(x[:,3:4])
         h = torch.cat([hc, hd], 1)
         h = self.main(h).squeeze()
+
         return h
+
+    def forward_dummy(self):
+        shape = (2, 4, 16, 64, 64)
+        x = Variable(T.FloatTensor(*shape).normal_())
+
+        return self(x)
 
 if __name__=="__main__":
     print(dict(ColorVideoGenerator(10).named_parameters()).keys())
