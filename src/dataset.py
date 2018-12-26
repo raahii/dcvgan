@@ -12,12 +12,14 @@ from scipy.misc import imresize
 import utils
 import dataio
 
+PROCESSED_PATH = Path("data/processed")
+
 class VideoDataset(Dataset):
-    def __init__(self, dataset_path, preprocess_func, video_length=16, image_size=64, \
-                        number_limit=-1, mode="train"):
+    def __init__(self, name, dataset_path, preprocess_func, video_length=16, 
+                       image_size=64, number_limit=-1, mode="train"):
         # TODO: currently, mode only support 'train'
 
-        root_path = dataset_path / 'preprocessed' / mode
+        root_path = PROCESSED_PATH / name / mode
         if not root_path.exists():
             print('>> Preprocessing ... (->{})'.format(root_path))
             root_path.mkdir(parents=True, exist_ok=True)
