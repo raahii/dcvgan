@@ -1,0 +1,3 @@
+[submodule "evaluation"]
+	path = evaluation
+	url = https://github.com/raahii/evaluation_video_gans.git
