@@ -130,6 +130,10 @@ def preprocess_isogd_dataset(dataset_path, save_path, length, img_size, n_jobs=-
         name = "{}_{}_{}".format(color_path.parents[0].name, color_path.name[2:7], label)
         dataio.save_video_as_images(color_video, save_path/name/'color')
         dataio.save_video_as_images(depth_video, save_path/name/'depth')
+        (save_path/'color').mkdir(parents=True, exist_ok=True)
+        (save_path/'depth').mkdir(parents=True, exist_ok=True)
+        dataio.write_video(color_video, save_path/'color'/(name+".mp4"))
+        dataio.write_video(depth_video, save_path/'depth'/(name+".mp4"))
 
         return [name+'/color', name+'/depth', T]
 

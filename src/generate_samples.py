@@ -2,6 +2,7 @@ import argparse
 from pathlib import Path
 import yaml
 from tqdm import tqdm
+from joblib import Parallel, delayed
 
 import torch
 
@@ -50,8 +51,6 @@ def main():
     parser.add_argument("--batchsize", '-b', type=int, default=10)
     args = parser.parse_args()
 
-    assert args.n_samples % args.batchsize == 0
-    
     # read config file
     with open(args.result_dir/"config.yml") as f:
         configs = yaml.load(f)
@@ -74,9 +73,16 @@ def main():
         cv = utils.videos_to_numpy(cv)
         cv = cv.transpose(0, 2, 3, 4, 1)
 
-        for j, (d, c) in enumerate(zip(dv, cv)):
-            dataio.write_video(d, depth_dir/"{:06d}.mp4".format(i+j))
-            dataio.write_video(c, color_dir/"{:06d}.mp4".format(i+j))
+        Parallel(n_jobs=10, verbose=0)\
+            ([delayed(dataio.write_video)(d, depth_dir/"{:06d}.mp4".format(i+j)) \
+              for j, d in enumerate(dv)])
+        Parallel(n_jobs=10, verbose=0)\
+            ([delayed(dataio.write_video)(c, color_dir/"{:06d}.mp4".format(i+j)) \
+              for j, c in enumerate(cv)])
+
+        # for j, (d, c) in enumerate(zip(dv, cv)):
+        #     dataio.write_video(d, depth_dir/"{:06d}.mp4".format(i+j))
+        #     dataio.write_video(c, color_dir/"{:06d}.mp4".format(i+j))
 
 if __name__=="__main__":
     main()
