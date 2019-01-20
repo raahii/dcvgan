@@ -3,6 +3,10 @@ __pycache__
 deploy.sh
 
 data/*
+!data/raw
+data/raw/*
+!data/processed
+data/processed/*
 result/*
 notebooks/*
 !.gitkeep
