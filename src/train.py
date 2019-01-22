@@ -6,7 +6,9 @@ import torch
 from torch.utils.data import DataLoader
 
 from dataset import VideoDataset
-from dataset import preprocess_isogd_dataset
+from datasets.isogd import preprocess_isogd_dataset
+from datasets.mug import preprocess_mug_dataset
+from datasets.surreal import preprocess_surreal_dataset
 
 from models import DepthVideoGenerator, ColorVideoGenerator
 from models import ImageDiscriminator, VideoDiscriminator
@@ -14,8 +16,8 @@ from models import ImageDiscriminator, VideoDiscriminator
 from trainer import Trainer
 
 def prepare_dataset(configs):
-    if configs["dataset"]["name"] not in ["isogd"]:
-        raise NotImplemented
+    if configs["dataset"]["name"] not in ["mug", "isogd", "surreal"]:
+        raise NotImplementedError
     
     return VideoDataset(
             configs["dataset"]["name"],

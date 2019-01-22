@@ -111,3 +111,8 @@ def make_video_grid(videos, rows, cols):
     videos = videos[None]
 
     return videos
+
+
+def min_max_norm(x):
+    return (x-x.min())/(x.max()-x.min())
+
