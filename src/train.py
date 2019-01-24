@@ -1,4 +1,5 @@
 import argparse
+import random
 import yaml
 from pathlib import Path
 
@@ -14,6 +15,9 @@ from models import DepthVideoGenerator, ColorVideoGenerator
 from models import ImageDiscriminator, VideoDiscriminator
 
 from trainer import Trainer
+
+def worker_init_fn(worker_id):
+    random.seed(worker_id)
 
 def prepare_dataset(configs):
     if configs["dataset"]["name"] not in ["mug", "isogd", "surreal"]:
@@ -48,6 +52,7 @@ def main():
                     shuffle=True, 
                     drop_last=True, 
                     pin_memory=True,
+                    worker_init_fn=worker_init_fn,
                     )
     
     # prepare models

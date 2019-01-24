@@ -1,4 +1,5 @@
 import time
+import random
 import shutil
 from pathlib import Path
 import pickle
@@ -52,12 +53,17 @@ class Trainer(object):
         
         # copy config file to log directory
         shutil.copy(configs["config_path"], str(self.log_dir/'config.yml'))
- 
-        # fix seed
-        np.random.seed(configs['seed'])
-        torch.manual_seed(configs['seed'])
-        torch.cuda.manual_seed_all(configs['seed'])
-        torch.backends.cudnn.benchmark = True
+
+        self.fix_seed()
+
+    def fix_seed(self):
+        seed = self.configs["seed"]
+        random.seed(seed)
+        np.random.seed(seed)
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
 
     def create_optimizer(self, params, lr, decay):
         return optim.Adam(
