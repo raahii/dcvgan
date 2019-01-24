@@ -9,8 +9,8 @@ seed: 0
 video_length: 16
 image_size: 64
 
-log_dir: "result/isogd"
-tensorboard_dir: "result/isogd/runs"
+log_dir: "result/surreal"
+tensorboard_dir: "result/surreal/runs"
 
 # interval
 log_interval:         10
@@ -20,8 +20,8 @@ evaluation_interval:  10000
 
 # dataset configs
 dataset: 
-  name: "isogd"
-  path: "data/raw/isogd"
+  name: "surreal"
+  path: "data/raw/surreal"
   n_workers: 1
   number_limit: 110
 

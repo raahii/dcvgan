@@ -5,13 +5,13 @@ This repository contains official pytorch implementation and further details of 
 
 
 
-### About
+## About
 
 
 
 
 
-### Requirements
+## Requirements
 
 - Python3
 - PyTorch
@@ -20,7 +20,7 @@ This repository contains official pytorch implementation and further details of 
 
 
 
-#### 1. Install dependencies
+### 1. Install dependencies
 
 ```
 pip install -r requirements.txt
@@ -28,7 +28,7 @@ pip install -r requirements.txt
 
 
 
-#### 2. Prepare the dataset
+### 2. Prepare the dataset
 
 - Facial Expression: [MUG Facial Exprssion Database](https://mug.ee.auth.gr/fed/)
 - Hand Gesture: [Chalearn LAP IsoGD Database](http://www.cbsr.ia.ac.cn/users/jwan/database/isogd.html)
@@ -37,7 +37,7 @@ Please Follow the instructions of each official page and download the dataset. P
 
 
 
-#### 3. Training
+### 3. Training
 
 ```
 python src/train.py --config <config.yml>
@@ -48,7 +48,7 @@ For the first time, preprocessing the dataset starts automatically. Preprocessin
 
 Please refer and edit `config.yml` under `configs/` to chage training configurations such as training epochs, batchsize, result directory and so on.
 
-#### 4. Sampling
+### 4. Sampling
 
 ```
 python src/generate_samples.py <result dir> <iteration> <save dir>
@@ -56,7 +56,7 @@ python src/generate_samples.py <result dir> <iteration> <save dir>
 
 
 
-#### 5. Evaluation
+### 5. Evaluation
 
 I have published a framework for efficient evaluation of video generation. The framework supports `Inception Score`, `FID` and `PRD` now. Please refer the repository: [video-gans-evaluation](https://github.com/raahii/video-gans-evaluation)
 
@@ -66,7 +66,7 @@ I have published a framework for efficient evaluation of video generation. The f
 
 
 
-### TODOS
+## TODOS
 
 - [ ] upload pretrained models
 - [ ] dockernize
