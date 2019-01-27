@@ -2,6 +2,7 @@ import numpy as np
 import cv2
 from PIL import Image
 import skvideo.io
+import scipy.io
 
 def read_img(path):
     return cv2.imread(str(path))[:,:,::-1]
@@ -46,7 +47,7 @@ def read_video(path):
 
     return video_tensor
 
-def write_video(video_tensor, path):
+def write_video(video_tensor, path, m=1):
     """
     save a video
 
@@ -59,6 +60,49 @@ def write_video(video_tensor, path):
         path to the video
     """
     writer = skvideo.io.FFmpegWriter(str(path))
+    if m > 0:
+        m = int(m)
+        video_tensor = np.repeat(video_tensor, m, axis=0)
+    else:
+        raise ValueError
+
     for frame in video_tensor:
         writer.writeFrame(frame)
     writer.close()
+
+def read_depth_mat(path):
+    data_dict = scipy.io.loadmat(str(path))
+    
+    i, depth_data = 1, []
+    while True:
+        key = "depth_{}".format(i)
+        if not key in data_dict:
+            break
+
+        depth_data.append(data_dict[key])
+        i += 1
+
+    depth_data = np.stack(depth_data)
+    return depth_data
+
+def read_segm_mat(path):
+    data_dict = scipy.io.loadmat(str(path))
+    
+    i, segm_data = 1, []
+    while True:
+        key = "segm_{}".format(i)
+        if not key in data_dict:
+            break
+
+        segm_data.append(data_dict[key])
+        i += 1
+
+    segm_data = np.stack(segm_data)
+    return segm_data
+
+def read_joints_mat(path):
+    data_dict = scipy.io.loadmat(str(path))
+    joints2d = data_dict["joints2D"]
+    joints2d = joints2d.transpose(2, 1, 0)
+
+    return joints2d
