@@ -54,7 +54,7 @@ def preprocess_isogd_dataset(dataset_path, save_path, mode, length, img_size, n_
 
         # resize
         color_video = [imresize(img, (img_size, img_size)) for img in color_video]
-        depth_video = [imresize(img, (img_size, img_size)) for img in depth_video]
+        depth_video = [imresize(img, (img_size, img_size), 'nearest') for img in depth_video]
         color_video, depth_video = np.stack(color_video), np.stack(depth_video)
         depth_video = depth_video[...,0] # save as grayscale image
 
