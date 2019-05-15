@@ -1,9 +1,9 @@
 # experiment configs
-experiment_name: "debug"
+experiment_name: "dcvgan_depth"
 
 # basic configs
-batchsize: 5
-n_epochs: 100
+batchsize: 20
+n_epochs: 50
 seed: 0
 
 video_length: 16
@@ -13,16 +13,16 @@ log_dir: "result/surreal"
 tensorboard_dir: "result/surreal/runs"
 
 # interval
-log_interval:         10
-log_samples_interval: 10
-snapshot_interval:    5000
+log_interval:         100
+log_samples_interval: 100
+snapshot_interval:    1000
 evaluation_interval:  60000
 
 # dataset configs
 dataset:
   name: "surreal"
   path: "data/raw/surreal"
-  n_workers: 1
+  n_workers: 8
   number_limit: -1
   cond: "segm"
   channel: 26
@@ -38,17 +38,17 @@ gen:
   optimizer:
     lr: 0.0002
     decay: 0.00001
-idis: 
+idis:
   use_noise: True
   noise_sigma: 0.2
   ndf: 32
   optimizer:
-    lr: 0.0002
+    lr: 0.0001
     decay: 0.00001
-vdis: 
+vdis:
   use_noise: True
   noise_sigma: 0.2
   ndf: 32
   optimizer:
-    lr: 0.0002
+    lr: 0.0001
     decay: 0.00001

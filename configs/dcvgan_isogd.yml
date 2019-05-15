@@ -19,7 +19,7 @@ snapshot_interval:    5000
 evaluation_interval:  60000
 
 # dataset configs
-dataset: 
+dataset:
   name: "isogd"
   path: "data/isogd"
   n_workers: 4
@@ -30,6 +30,7 @@ gen:
   dim_z_content: 40
   dim_z_motion: 10
   dim_z_color: 10
+  ngf: 64
   optimizer:
     lr: 0.0002
     decay: 0.00001
