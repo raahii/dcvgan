@@ -3,27 +3,36 @@ DCVGAN: Depth Conditional Video Generation
 
 This repository contains official pytorch implementation of DCVGAN.
 
-
-
-## About
-
-
-
-
+> Yuki Nakahira and Kazuhiko Kawamoto, DCVGAN: Depth Conditional Video Generation, 2019 IEEE International Conference on Image Processing, ICIP 2019.
 
 ## Result
 
 #### facial expression dataset
 
-![result-mug](https://user-images.githubusercontent.com/13511520/54088503-f58d8900-43a1-11e9-8b27-1eca5a7d8e98.gif)
-
-
+<p align="center">
+<img src="https://user-images.githubusercontent.com/13511520/54088503-f58d8900-43a1-11e9-8b27-1eca5a7d8e98.gif" width="640px">
+</p>
 
 #### hand gesture dataset
 
-![result-isogd](https://user-images.githubusercontent.com/13511520/54088434-75672380-43a1-11e9-9f7e-c6ff1bc0b77b.gif)
+<p align="center">
+<img src="https://user-images.githubusercontent.com/13511520/54088434-75672380-43a1-11e9-9f7e-c6ff1bc0b77b.gif" width="640px">
+</p>
 
 
+## Network Architecture
+
+### Generators
+
+<p align="center">
+<img src="https://user-images.githubusercontent.com/13511520/57746277-743cd480-770b-11e9-8066-c3b6b64426aa.png" width="60%">
+</p>
+
+### Discriminators
+
+<p align="center">
+<img src="https://user-images.githubusercontent.com/13511520/57746276-73a43e00-770b-11e9-90ec-9dcc58ffc3b6.png" width="60%">
+</p>
 
 ## Requirements
 
