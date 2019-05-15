@@ -68,7 +68,9 @@ def main():
         configs["video_length"],
     )
 
-    cgen = ColorVideoGenerator(configs["gen"]["dim_z_color"])
+    cgen = ColorVideoGenerator(
+        1, 3, configs["gen"]["dim_z_color"], configs["gen"]["ngf"]
+    )
 
     idis = ImageDiscriminator(
         1,
