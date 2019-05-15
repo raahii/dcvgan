@@ -4,14 +4,13 @@ from pathlib import Path
 
 import torch
 import yaml
-from dataset import VideoDataset
-from datasets.isogd import preprocess_isogd_dataset
-from datasets.mug import preprocess_mug_dataset
-from datasets.surreal import preprocess_surreal_dataset
+from dataset import ConditionVariableVideoDataset
+from datasets.surreal import preprocess_surreal_dataset, segm_part_colors
 from models import (ColorVideoGenerator, DepthVideoGenerator,
-                    ImageDiscriminator, VideoDiscriminator)
+                    ImageDiscriminator, SegmentationVideoGenerator,
+                    VideoDiscriminator)
 from torch.utils.data import DataLoader
-from trainer import Trainer
+from trainer_segm_condition import Trainer
 
 
 def worker_init_fn(worker_id):
@@ -19,16 +18,17 @@ def worker_init_fn(worker_id):
 
 
 def prepare_dataset(configs):
-    if configs["dataset"]["name"] not in ["mug", "isogd", "surreal"]:
+    if configs["dataset"]["name"] not in ["surreal"]:
         raise NotImplementedError
 
-    return VideoDataset(
+    return ConditionVariableVideoDataset(
         configs["dataset"]["name"],
         Path(configs["dataset"]["path"]),
         eval(f'preprocess_{configs["dataset"]["name"]}_dataset'),
         configs["video_length"],
         configs["image_size"],
         configs["dataset"]["number_limit"],
+        configs["dataset"]["cond"],
     )
 
 
@@ -60,18 +60,32 @@ def main():
     )
 
     # prepare models
-    dgen = DepthVideoGenerator(
-        1,
-        configs["gen"]["dim_z_content"],
-        configs["gen"]["dim_z_motion"],
-        configs["gen"]["ngf"],
-        configs["video_length"],
-    )
+    cond = configs["dataset"]["cond"]
+    if cond == "depth":
+        in_ch = 1
+        ggen = DepthVideoGenerator(
+            in_ch,
+            configs["gen"]["dim_z_content"],
+            configs["gen"]["dim_z_motion"],
+            configs["gen"]["ngf"],
+            configs["video_length"],
+        )
+    elif cond == "segm":
+        in_ch = len(segm_part_colors)
+        ggen = SegmentationVideoGenerator(
+            in_ch,
+            configs["gen"]["dim_z_content"],
+            configs["gen"]["dim_z_motion"],
+            configs["gen"]["ngf"],
+            configs["video_length"],
+        )
+    else:
+        raise NotImplementedError
 
-    cgen = ColorVideoGenerator(configs["gen"]["dim_z_color"])
+    cgen = ColorVideoGenerator(in_ch, 3, configs["gen"]["dim_z_color"])
 
     idis = ImageDiscriminator(
-        1,
+        in_ch,
         3,
         configs["idis"]["use_noise"],
         configs["idis"]["noise_sigma"],
@@ -79,7 +93,7 @@ def main():
     )
 
     vdis = VideoDiscriminator(
-        1,
+        in_ch,
         3,
         configs["vdis"]["use_noise"],
         configs["vdis"]["noise_sigma"],
@@ -88,7 +102,7 @@ def main():
 
     # start training
     trainer = Trainer(dataloader, configs)
-    trainer.train(dgen, cgen, idis, vdis)
+    trainer.train(ggen, cgen, idis, vdis)
 
 
 if __name__ == "__main__":

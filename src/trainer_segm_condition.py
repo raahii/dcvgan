@@ -9,6 +9,7 @@ import numpy as np
 import torch
 import torch.optim as optim
 import utils
+from datasets.surreal import segm_part_colors
 from graphviz import Digraph
 from logger import Logger
 from torch import nn
@@ -60,6 +61,10 @@ class Trainer(object):
 
         self.fix_seed()
 
+        if configs["dataset"]["cond"] == "segm":
+            self.segm_colors = torch.from_numpy(segm_part_colors).float()
+            self.segm_colors = self.segm_colors.to(self.device)
+
     def fix_seed(self):
         seed = self.configs["seed"]
         random.seed(seed)
@@ -68,6 +73,18 @@ class Trainer(object):
         torch.cuda.manual_seed_all(seed)
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
+
+    def make_segmentation_video(self, video):
+        N, T, H, W = video.shape
+
+        segm_video = torch.zeros((T, H, W, 3), dtype=torch.float32, device=self.device)
+
+        for i in range(N):
+            n = int((video[i] == 1).sum().data)
+            if n != 0:
+                segm_video[video[i] == 1] = self.segm_colors[i].repeat(n, 1)
+
+        return segm_video
 
     def create_optimizer(self, params, lr, decay):
         return optim.Adam(params, lr=lr, betas=(0.5, 0.999), weight_decay=decay)
@@ -90,17 +107,17 @@ class Trainer(object):
 
         return loss
 
-    def log_rgbd_videos(self, color_videos, depth_videos, tag, iteration):
+    def log_rgbd_videos(self, cond_videos, color_videos, tag, iteration):
         # (B, C, T, H, W)
+        cond_videos = utils.videos_to_numpy(cond_videos)
         color_videos = utils.videos_to_numpy(color_videos)
-        depth_videos = utils.videos_to_numpy(depth_videos)
 
         # (1, C, T, H*rows, W*cols)
+        grid_g = utils.make_video_grid(cond_videos, self.rows_log, self.cols_log)
         grid_c = utils.make_video_grid(color_videos, self.rows_log, self.cols_log)
-        grid_d = utils.make_video_grid(depth_videos, self.rows_log, self.cols_log)
 
         # concat them in horizontal direction
-        grid_video = np.concatenate([grid_d, grid_c], axis=-1)
+        grid_video = np.concatenate([grid_g, grid_c], axis=-1)
         self.logger.tf_log_video(tag, grid_video, iteration)
 
     def save_graph(self, model, name):
@@ -109,36 +126,32 @@ class Trainer(object):
         graph = make_dot(model.forward_dummy().mean(), dict(model.named_parameters()))
         graph.render(str(graph_dir / name))
 
-    def generate_samples(self, sgen, cgen, iteration):
-        sgen.eval()
+    def generate_samples(self, ggen, cgen, iteration):
+        ggen.eval()
         cgen.eval()
 
         with torch.no_grad():
             # fake samples
-            d = sgen.sample_videos(self.num_log)
-            c = cgen.forward_videos(d)
-            d = d.repeat(1, 3, 1, 1, 1)  # to have 3-channels
-            self.log_rgbd_videos(c, d, "fake_samples", iteration)
-            self.logger.tf_log_histgram(d[:, :, 0], "depthspace_fake", iteration)
+            g = ggen.sample_videos(self.num_log)
+            c = cgen.forward_videos(g)
+            g = torch.stack([self.make_segmentation_video(_g) for _g in g])
+            g = g.permute(0, 4, 1, 2, 3)
+            self.log_rgbd_videos(g, c, "fake_samples", iteration)
+            self.logger.tf_log_histgram(g[:, :, 0], "segmspace_fake", iteration)
             self.logger.tf_log_histgram(c[:, :, 0], "colorspace_fake", iteration)
-
-            # fake samples with fixed depth
-            d = sgen.sample_videos(1)
-            d = d.repeat(self.num_log, 1, 1, 1, 1)
-            c = cgen.forward_videos(d)
-            d = d.repeat(1, 3, 1, 1, 1)
-            self.log_rgbd_videos(c, d, "fake_samples_fixed_depth", iteration)
 
             # real samples
             v = next(self.dataloader_log.__iter__())
-            c, d = v[:, 0:3], v[:, 3:4].repeat(1, 3, 1, 1, 1)
-            self.log_rgbd_videos(c, d, "real_samples", iteration)
-            self.logger.tf_log_histgram(d[:, :, 0], "depthspace_real", iteration)
+            c, g = v[:, :3], v[:, 3:]
+            g = torch.stack([self.make_segmentation_video(_g) for _g in g])
+            g = g.permute(0, 4, 1, 2, 3)
+            self.log_rgbd_videos(g, c, "real_samples", iteration)
+            self.logger.tf_log_histgram(g[:, :, 0], "segmspace_real", iteration)
             self.logger.tf_log_histgram(c[:, :, 0], "colorspace_real", iteration)
 
-    def snapshot_models(self, sgen, cgen, idis, vdis, i):
+    def snapshot_models(self, ggen, cgen, idis, vdis, i):
         torch.save(
-            sgen.state_dict(), str(self.log_dir / "sgen_{:05d}.pytorch".format(i))
+            ggen.state_dict(), str(self.log_dir / "ggen_{:05d}.pytorch".format(i))
         )
         torch.save(
             cgen.state_dict(), str(self.log_dir / "cgen_{:05d}.pytorch".format(i))
@@ -150,23 +163,22 @@ class Trainer(object):
             vdis.state_dict(), str(self.log_dir / "vdis_{:05d}.pytorch".format(i))
         )
 
-    def train(self, sgen, cgen, idis, vdis):
-
+    def train(self, ggen, cgen, idis, vdis):
         if self.use_cuda:
-            sgen.cuda()
+            ggen.cuda()
             cgen.cuda()
             idis.cuda()
             vdis.cuda()
 
         # save the graphs
-        self.save_graph(sgen, "sgen")
+        self.save_graph(ggen, "ggen")
         self.save_graph(cgen, "cgen")
         self.save_graph(idis, "idis")
         self.save_graph(vdis, "vdis")
 
         # create optimizers
         configs = self.configs
-        gen_params = list(sgen.parameters()) + list(cgen.parameters())
+        gen_params = list(ggen.parameters()) + list(cgen.parameters())
         opt_gen = self.create_optimizer(gen_params, **configs["gen"]["optimizer"])
         opt_idis = self.create_optimizer(
             idis.parameters(), **configs["idis"]["optimizer"]
@@ -183,14 +195,14 @@ class Trainer(object):
                 # --------------------
                 # phase generator
                 # --------------------
-                sgen.train()
+                ggen.train()
                 cgen.train()
                 opt_gen.zero_grad()
 
                 # fake batch
-                d = sgen.sample_videos(self.batchsize)
-                c = cgen.forward_videos(d)
-                x_fake = torch.cat([c.float(), d.float()], 1)
+                g = ggen.sample_videos(self.batchsize)
+                c = cgen.forward_videos(g)
+                x_fake = torch.cat([c.float(), g.float()], 1)
                 t_rand = np.random.randint(self.video_length)
                 y_fake_i = idis(x_fake[:, :, t_rand])
                 y_fake_v = vdis(x_fake)
@@ -247,11 +259,11 @@ class Trainer(object):
 
                 # snapshot models
                 if iteration % configs["snapshot_interval"] == 0:
-                    self.snapshot_models(sgen, cgen, idis, vdis, iteration)
+                    self.snapshot_models(ggen, cgen, idis, vdis, iteration)
 
                 # log samples
                 if iteration % configs["log_samples_interval"] == 0:
-                    self.generate_samples(sgen, cgen, iteration)
+                    self.generate_samples(ggen, cgen, iteration)
 
                 # evaluate generated samples
                 # if iteration % configs["evaluation_interval"] == 0:
@@ -261,5 +273,5 @@ class Trainer(object):
                 logger.update("iteration", 1)
             logger.update("epoch", 1)
 
-        self.snapshot_models(sgen, cgen, idis, vdis, iteration)
-        self.generate_samples(sgen, cgen, iteration)
+        self.snapshot_models(ggen, cgen, idis, vdis, iteration)
+        self.generate_samples(ggen, cgen, iteration)

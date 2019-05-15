@@ -41,7 +41,16 @@ segm_part_colors = np.asarray([
     [0.8877, 0.6154, 0.5391],
     [0.6206, 0.2239, 0.3094],
 ])
-segm_part_colors = (segm_part_colors * 255).astype(np.uint8)
+# segm_part_colors = (segm_part_colors * 255).astype(np.uint8)
+
+def make_segmentation_video(video):
+    T, H, W = video.shape
+    N = len(segm_part_colors)
+    segm_video = np.zeros((T, H, W, 3), dtype=np.uint8)
+    for i in range(N):
+        segm_video[video == i] = segm_part_colors[i]
+    
+    return segm_video
 
 def preprocess_surreal_dataset(dataset_path, save_path, mode, length, img_size, n_jobs=-1):
     '''
@@ -64,12 +73,15 @@ def preprocess_surreal_dataset(dataset_path, save_path, mode, length, img_size, 
     segm_paths, info_paths = [], []
 
     video_folders = list((dataset_path/mode).glob("run*"))
-    for folder in video_folders:
+    for folder in reversed(video_folders):
         _video_paths, _depth_paths = [], []
         _segm_paths, _info_paths = [], []
 
         for p in folder.iterdir():
             if not p.is_dir():
+                continue
+            
+            if "ung_" in p.name:
                 continue
             
             _video_paths.extend(list(p.glob("*.mp4")))
@@ -84,94 +96,103 @@ def preprocess_surreal_dataset(dataset_path, save_path, mode, length, img_size, 
         info_paths.extend(sorted(_info_paths, key=frame_number))
 
     def _preprocess(paths, save_path, length, img_size, segm_part_colors):
-        video_path, depth_path, segm_path, info_path = paths
-        for p in paths:
-            if not p.exists():
-              print('Sample Not found, skipped. {}'.format(p.parents[0]))
-              return
-        
-        # read all videos
-        color_video = dataio.read_video(video_path)
-        depth_video = dataio.read_depth_mat(depth_path)
-        segm_video = dataio.read_segm_mat(segm_path)
-        joints = dataio.read_joints_mat(info_path) # (n_frames, n_points, 2)
+        try:
+            video_path, depth_path, segm_path, info_path = paths
+            for p in paths:
+                if not p.exists():
+                  print('Sample Not found, skipped. {}'.format(p.parents[0]))
+                  return
+            
+            # read all videos
+            color_video = dataio.read_video(video_path)
+            depth_video = dataio.read_depth_mat(depth_path)
+            segm_video = dataio.read_segm_mat(segm_path)
+            joints = dataio.read_joints_mat(info_path) # (n_frames, n_points, 2)
 
-        # output path
-        id_string = video_path.name[0:-4] # without extension
-        name = "{}_{}".format(video_path.parents[1].name, id_string)
+            if len(color_video) < 16:
+                print("skipped: ", video_path)
+                return
 
-        # compute mean center points of human bbox from joints to crop video frames
-        # TODO: make pose video
-        center_points = []
-        for f_joints in joints:
-            bottom_left = np.amin(f_joints, axis=0)
-            top_right = np.amax(f_joints, axis=0)
-            center = (top_right - bottom_left) / 2.0
-            center_points.append(center)
-        center_point = np.array(center_points).mean(axis=0)
-        
-        T, H, W, C = color_video.shape
-        cx = center_point[0]
-        if cx + H > W:
-            lx = W - H
-        elif cx - H < 0:
-            lx = 0
-        else:
-            lx = cx - H//2
+            if len(color_video) != len(depth_video) or \
+                    len(color_video) != len(segm_video):
+                print("skipped: ", video_path)
+                return
 
-        ### color
-        # crop
-        color_video = color_video[:, :, lx:lx+H]
+            # output path
+            id_string = video_path.name[0:-4] # without extension
+            name = "{}_{}".format(video_path.parents[1].name, id_string)
+            out_path = save_path/name
+            out_path.mkdir(parents=True, exist_ok=True)
 
-        #resize
-        color_video = [imresize(img, (img_size, img_size)) for img in color_video]
-        color_video = np.stack(color_video)
+            # compute mean center points of human bbox from joints to crop video frames
+            # TODO: make pose video
+            center_points = []
+            for f_joints in joints:
+                bottom_left = np.amin(f_joints, axis=0)
+                top_right = np.amax(f_joints, axis=0)
+                center = (top_right - bottom_left) / 2.0
+                center_points.append(center)
+            center_point = np.array(center_points).mean(axis=0)
+            
+            T, H, W, C = color_video.shape
+            cx = center_point[0]
+            if cx + H > W:
+                lx = W - H
+            elif cx - H < 0:
+                lx = 0
+            else:
+                lx = cx - H//2
 
-        # save
-        dataio.save_video_as_images(color_video, save_path/name/'color')
-        dataio.write_video(color_video, save_path/'color'/(name+".mp4"))
-        
-        ### depth
-        # crop
-        depth_video_np  = depth_video[:, :, lx:lx+H]
-        depth_video_vis = depth_video[:, :, lx:lx+H]
-        
-        # resize
-        depth_video = [imresize(img, (img_size, img_size), 'nearest') for img in depth_video]
-        depth_video = np.stack(depth_video)
+            ### color
+            # crop
+            color_video = color_video[:, :, lx:lx+H]
 
-        # limit value range of depth video
-        fg_values = depth_video[depth_video!=10000000000.0]
-        depth_video_vis = np.clip(depth_video, fg_values.min(), fg_values.max())
-        depth_video_vis = utils.min_max_norm(depth_video) * 255.
-        depth_video_vis = depth_video_vis.astype(np.uint8)
-        depth_video_np = np.clip(depth_video, 0, 15.0)
+            #resize
+            color_video = [imresize(img, (img_size, img_size)) for img in color_video]
+            color_video = np.stack(color_video)
+            np.savez_compressed(str(out_path/'color.npz'), data=color_video)
 
-        # save
-        np.save(save_path/name/'depth', depth_video_np)
-        dataio.write_video(depth_video_vis, save_path/'depth'/(name+".mp4"))
+            # save
+            # dataio.save_video_as_images(color_video, save_path/name/'color')
+            dataio.write_video(color_video, save_path/'color'/(name+".mp4"))
+            
+            ### depth
+            # crop
+            depth_video = depth_video[:, :, lx:lx+H]
+            
+            # resize
+            depth_video = [imresize(img, (img_size, img_size), 'nearest') for img in depth_video]
+            depth_video = np.stack(depth_video)
 
-        ### semantic segmentation
-        # crop
-        segm_video  = segm_video[:, :, lx:lx+H]
+            # limit value range of depth video
+            # fg_values = depth_video[depth_video!=10000000000.0]
+            # depth_video_vis = np.clip(depth_video, fg_values.min(), fg_values.max())
+            # depth_video_vis = utils.min_max_norm(depth_video) * 255.
+            # depth_video_vis = depth_video_vis.astype(np.uint8)
+            depth_video = np.clip(depth_video, 0, 15.0)
+            # dataio.write_video(depth_video_vis, save_path/'depth'/(name+".mp4"))
+            np.savez_compressed(str(out_path/'depth.npz'), data=depth_video)
 
-        # resize
-        segm_video = [imresize(img, (img_size, img_size), 'nearest') for img in segm_video]
-        segm_video = np.stack(segm_video)
+            ### semantic segmentation
+            # crop
+            segm_video  = segm_video[:, :, lx:lx+H]
 
-        # give region color to segmentation video
-        T, H, W = segm_video.shape
-        N = len(segm_part_colors)
-        segm_video_vis = np.zeros((T, H, W, 3), dtype=np.uint8)
-        for i in range(N):
-            indices = segm_video == i
-            segm_video_vis[indices] = segm_part_colors[i]
+            # resize
+            segm_video = [imresize(img, (img_size, img_size), 'nearest') for img in segm_video]
+            segm_video = np.stack(segm_video)
+            segm_video = np.eye(len(segm_part_colors))[segm_video]
+            np.savez_compressed(str(out_path/'segm.npz'), data=segm_video)
 
-        segm_video_np = np.eye(N)[segm_video]
-        np.save(save_path/name/'segm', segm_video_np)
-        dataio.write_video(segm_video_vis, save_path/'segm'/(name+".mp4"))
+            # give region color to segmentation video
+            # segm_video_vis = make_segmentation_video(segm_video) * 255
+            # dataio.save_video_as_images(segm_video_vis, save_path/name/'segm')
 
-        return [name, T]
+            return [name, T]
+        except:
+            import traceback
+            traceback.print_exc()
+            print(video_path)
+            return
 
     # perform preprocess with multi threads
     (save_path/'color').mkdir(parents=True, exist_ok=True)
@@ -181,7 +202,8 @@ def preprocess_surreal_dataset(dataset_path, save_path, mode, length, img_size, 
     
     # https://github.com/gulvarol/surreal/blob/8af8ae195e6b4bb39a0fb64524a15a434ea620f6/datageneration/main_part1.py#L34
     # pose_connections = np.asarray([ ])
-
+    
+    print(len(video_paths), "samples found")
     video_infos = Parallel(n_jobs=n_jobs, verbose=3)\
                     ([delayed(_preprocess)(paths, save_path, length, img_size, segm_part_colors) \
                       for paths in zip(video_paths, depth_paths, segm_paths, info_paths)])
