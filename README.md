@@ -77,24 +77,24 @@ cd dcvgan
 - OpenCV
 - GraphViz
 
-#### Using nvidia-docker
+#### Using docker
+  
+  Easy. Thanks :whale:
 
   ```shell
-  nvidia-docker build -t dcvgan
-  nvidia-docker run --runtime=nvidia -u $(id -u):$(id -g) -v $(pwd):~/dcvgan -it dcvgan
+  docker build -t dcvgan
+  docker run --runtime=nvidia -v $(pwd):/home/user/dcvgan -it dcvgan
   ```
-
-  Brilliant.
   
 #### Manual installation
 
   I recommend to use pyenv and conda to install dependencies. For instance, my environment is like following. 
 
   ```shell
-    pyenv install miniconda3-4.3.30
-    pyenv local miniconda3-4.3.30
-    conda install -y ffmpeg
-    pip install -r requirements.txt
+  pyenv install miniconda3-4.3.30
+  pyenv local miniconda3-4.3.30
+  conda install -y ffmpeg
+  pip install -r requirements.txt
   ```
   
   For detail, please refer my [Dockerfile](https://github.com/raahii/dcvgan/blob/master/Dockerfile).
