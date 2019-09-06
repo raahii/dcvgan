@@ -3,7 +3,7 @@ DCVGAN: Depth Conditional Video Generation
 
 This repository contains official pytorch implementation of DCVGAN.
 
-> Yuki Nakahira and Kazuhiko Kawamoto, DCVGAN: Depth Conditional Video Generation, 2019 IEEE International Conference on Image Processing, ICIP 2019.
+[Yuki Nakahira and Kazuhiko Kawamoto, DCVGAN: Depth Conditional Video Generation, 2019 IEEE International Conference on Image Processing, ICIP 2019.](https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=8803764)
 
 
 
