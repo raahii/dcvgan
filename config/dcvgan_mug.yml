@@ -1,5 +1,5 @@
 # experiment configs
-experiment_name: "dcvgan"
+experiment_name: "dcvgan-mug"
 
 # basic configs
 batchsize: 20

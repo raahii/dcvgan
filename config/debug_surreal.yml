@@ -1,5 +1,5 @@
 # experiment configs
-experiment_name: "debug"
+experiment_name: "debug-surreal"
 
 # basic configs
 batchsize: 5

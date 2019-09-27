@@ -11,7 +11,6 @@ import torch.optim as optim
 from graphviz import Digraph
 from torch import nn
 from torch.utils.data import DataLoader
-from torchviz.dot import make_dot
 
 import utils
 from logger import Logger, MetricType
@@ -94,10 +93,7 @@ class Trainer(object):
         for name, model in self.models.items():
             torch.save(
                 model.state_dict(),
-                str(
-                    self.model_snapshots_path
-                    / f"{name}_params_{self.iteration:05d}.pytorch"
-                ),
+                self.model_snapshots_path / f"{name}_params_{self.iteration:05d}.pth",
             )
 
     def log_rgbd_videos(self, color_videos, depth_videos, tag, iteration):
