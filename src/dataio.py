@@ -1,16 +1,21 @@
+import cv2
 import numpy as np
 import scipy.io
-
-import cv2
 import skvideo.io
 from PIL import Image
 
 
 def read_img(path):
+    """
+    Read a image using opencv function
+    """
     return cv2.imread(str(path))[:, :, ::-1]
 
 
 def write_img(img, path):
+    """
+    Write a image using opencv function
+    """
     Image.fromarray(img).save(str(path))
 
 
@@ -83,7 +88,7 @@ def read_depth_mat(path):
     i, depth_data = 1, []
     while True:
         key = "depth_{}".format(i)
-        if not key in data_dict:
+        if key not in data_dict:
             break
 
         depth_data.append(data_dict[key])
@@ -99,7 +104,7 @@ def read_segm_mat(path):
     i, segm_data = 1, []
     while True:
         key = "segm_{}".format(i)
-        if not key in data_dict:
+        if key not in data_dict:
             break
 
         segm_data.append(data_dict[key])

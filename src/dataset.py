@@ -1,18 +1,14 @@
-import os
-import re
 import shutil
-import sys
 from pathlib import Path
 
 import numpy as np
-from joblib import Parallel, delayed
-from scipy.misc import imresize
+from torch.utils.data import Dataset
 
 import dataio
-import skvideo.io
 import utils
-from datasets.surreal import segm_part_colors
-from torch.utils.data import Dataset
+from datasets.isogd import preprocess_isogd_dataset
+from datasets.mug import preprocess_mug_dataset
+from datasets.surreal import preprocess_surreal_dataset
 
 PROCESSED_PATH = Path("data/processed")
 
@@ -29,7 +25,6 @@ class VideoDataset(Dataset):
         mode="train",
     ):
         # TODO: Now only supporting mode 'train'.
-
         root_path = PROCESSED_PATH / name / mode
         if not root_path.exists():
             print(">> Preprocessing ... (->{})".format(root_path))
@@ -64,7 +59,7 @@ class VideoDataset(Dataset):
     def __getitem__(self, i):
         path, n_frames = self.video_list[i]
 
-        # if video is longer, choose subsequence
+        # if video length is longer than pre-defined max length, select subsequence randomly.
         if n_frames < self.video_length:
             raise Exception("Invalid Video Found! Video length is insufficient!")
         elif n_frames == self.video_length:
@@ -92,5 +87,20 @@ class VideoDataset(Dataset):
 
 
 if __name__ == "__main__":
-    dataset = VideoDataset(Path("data/isogd/"), preprocess_isogd_dataset)
-    print(dataset[0].shape)
+    # isogd
+    dataset = VideoDataset("isogd", Path("data/isogd/"), preprocess_isogd_dataset)
+    print("isogd")
+    print("dataset length:", len(dataset))
+    print("The first video sample:", dataset[0].shape)
+
+    # mug
+    dataset = VideoDataset("mug", Path("data/mug/"), preprocess_mug_dataset)
+    print("\nmug")
+    print("dataset length:", len(dataset))
+    print("The first video sample:", dataset[0].shape)
+
+    # # surreal
+    # dataset = VideoDataset("surreal", Path("data/surreal/"), preprocess_surreal_dataset)
+    # print("\nsurreal")
+    # print("dataset length:", len(dataset))
+    # print("The first video sample:", dataset[0].shape)

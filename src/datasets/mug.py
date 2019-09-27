@@ -8,12 +8,13 @@ import skvideo.io
 from joblib import Parallel, delayed
 from scipy.misc import imresize
 
-import utils
 import dataio
+import utils
+
 
 def preprocess_mug_dataset(dataset_path, save_path, mode, length, img_size, n_jobs=-1):
-    '''
+    """
     Preprocessing function for MUG Facial Expression Database
     https://mug.ee.auth.gr/fed/
-    '''
+    """
     raise NotImplementedError
