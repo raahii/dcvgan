@@ -1,16 +1,21 @@
 import argparse
 import random
 from pathlib import Path
+from typing import Dict, List
 
 import torch
+import torch.nn as nn
+import torch.optim as optim
 import yaml
+from torch.utils.data import DataLoader
+
 from dataset import VideoDataset
 from datasets.isogd import preprocess_isogd_dataset
 from datasets.mug import preprocess_mug_dataset
 from datasets.surreal import preprocess_surreal_dataset
+from logger import Logger
 from models import (ColorVideoGenerator, DepthVideoGenerator,
                     ImageDiscriminator, VideoDiscriminator)
-from torch.utils.data import DataLoader
 from trainer import Trainer
 
 
@@ -32,6 +37,13 @@ def prepare_dataset(configs):
     )
 
 
+def create_optimizer(models: List[nn.Module], lr: float, decay: float):
+    params: List[torch.Tensor] = []
+    for m in models:
+        params += list(m.parameters())
+    return optim.Adam(params, lr=lr, betas=(0.5, 0.999), weight_decay=decay)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -44,7 +56,7 @@ def main():
 
     # parse config yaml
     with open(args.config) as f:
-        configs = yaml.load(f)
+        configs = yaml.load(f, Loader=yaml.FullLoader)
     configs["config_path"] = args.config
 
     # prepare dataset
@@ -58,6 +70,11 @@ def main():
         pin_memory=True,
         worker_init_fn=worker_init_fn,
     )
+
+    # initialize logger
+    log_path = Path(configs["log_dir"]) / configs["experiment_name"]
+    tb_path = Path(configs["tensorboard_dir"]) / configs["experiment_name"]
+    logger = Logger(log_path, tb_path)
 
     # prepare models
     dgen = DepthVideoGenerator(
@@ -87,10 +104,17 @@ def main():
         configs["vdis"]["noise_sigma"],
         configs["vdis"]["ndf"],
     )
+    models = {"dgen": dgen, "cgen": cgen, "idis": idis, "vdis": vdis}
+
+    # optimizers
+    opt_gen = create_optimizer([dgen, cgen], **configs["gen"]["optimizer"])
+    opt_idis = create_optimizer([idis], **configs["idis"]["optimizer"])
+    opt_vdis = create_optimizer([vdis], **configs["vdis"]["optimizer"])
+    optimizers = {"gen": opt_gen, "idis": opt_idis, "vdis": opt_vdis}
 
     # start training
-    trainer = Trainer(dataloader, configs)
-    trainer.train(dgen, cgen, idis, vdis)
+    trainer = Trainer(dataloader, logger, models, optimizers, configs)
+    trainer.train()
 
 
 if __name__ == "__main__":

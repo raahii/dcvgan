@@ -204,7 +204,10 @@ class Logger(object):
         """
         add video data to tensorboard
         """
-        self.writer.add_video(name, videos, fps=8, global_step=step)
+        self.tf_writer.add_video(name, videos, fps=8, global_step=step)
+
+    def tf_hyperparams(self, values: Dict[str, Any]):
+        self.tf_writer.add_hparams(values, {})
 
     def info(self, msg: str):
         self._logger.info(msg)
@@ -220,12 +223,6 @@ class Logger(object):
 
     def critical(self, msg: str):
         self._logger.critical(msg)
-
-    def tf_log(self):
-        step = self.metrics["iteration"]
-        for name in ["loss_gen", "loss_idis", "loss_vdis"]:
-            value = self.metrics[name] / self.log_interval
-            self.writer.add_scalar(name, value, step)
 
 
 if __name__ == "__main__":

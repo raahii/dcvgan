@@ -1,29 +1,37 @@
-import pickle
+import copy
 import random
 import shutil
 import time
 from pathlib import Path
+from typing import Any, Dict
 
 import numpy as np
-
 import torch
 import torch.optim as optim
-import utils
 from graphviz import Digraph
-from logger import Logger
 from torch import nn
-from torch.autograd import Variable
 from torch.utils.data import DataLoader
 from torchviz.dot import make_dot
 
+import utils
+from logger import Logger, MetricType
+
 
 class Trainer(object):
-    def __init__(self, dataloader, configs):
-        self.batchsize = configs["batchsize"]
-        self.n_epochs = configs["n_epochs"]
-        self.video_length = configs["video_length"]
-
+    def __init__(
+        self,
+        dataloader: DataLoader,
+        logger: Logger,
+        models: Dict[str, nn.Module],
+        optimizers: Dict[str, Any],
+        configs: Dict[str, Any],
+    ):
         self.dataloader = dataloader
+        self.logger = logger
+        self.models = models
+        self.optimizers = optimizers
+        self.configs = configs
+        self.device = utils.current_device()
 
         self.num_log, self.rows_log, self.cols_log = 25, 5, 5
         self.dataloader_log = DataLoader(
@@ -35,29 +43,19 @@ class Trainer(object):
             pin_memory=True,
         )
 
-        self.log_dir = Path(configs["log_dir"]) / configs["experiment_name"]
-        self.log_dir.mkdir(parents=True, exist_ok=True)
+        self.gen_samples_path = self.logger.path / "videos"
+        self.model_snapshots_path = self.logger.path / "models"
+        for p in [self.gen_samples_path, self.model_snapshots_path]:
+            p.mkdir(parents=True, exist_ok=True)
 
-        self.tensorboard_dir = (
-            Path(configs["tensorboard_dir"]) / configs["experiment_name"]
-        )
-        self.tensorboard_dir.mkdir(parents=True, exist_ok=True)
-
-        self.logger = Logger(
-            self.log_dir, self.tensorboard_dir, configs["log_interval"]
-        )
-
-        self.evaluation_interval = configs["evaluation_interval"]
-        self.log_samples_interval = configs["log_samples_interval"]
-
-        self.gan_criterion = nn.BCEWithLogitsLoss(reduction="sum")
-        self.use_cuda = torch.cuda.is_available()
-        self.device = self.use_cuda and torch.device("cuda") or torch.device("cpu")
-        self.configs = configs
+        self.adv_loss = nn.BCEWithLogitsLoss(reduction="sum")
 
         # copy config file to log directory
-        shutil.copy(configs["config_path"], str(self.log_dir / "config.yml"))
+        shutil.copy(configs["config_path"], str(self.logger.path / "config.yml"))
 
+        self.iteration = 0
+        self.epoch = 0
+        self.snapshot_models()
         self.fix_seed()
 
     def fix_seed(self):
@@ -69,15 +67,12 @@ class Trainer(object):
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
 
-    def create_optimizer(self, params, lr, decay):
-        return optim.Adam(params, lr=lr, betas=(0.5, 0.999), weight_decay=decay)
-
     def compute_dis_loss(self, y_real, y_fake):
         ones = torch.ones_like(y_real, device=self.device)
         zeros = torch.zeros_like(y_fake, device=self.device)
 
-        loss = self.gan_criterion(y_real, ones) / y_real.numel()
-        loss += self.gan_criterion(y_fake, zeros) / y_fake.numel()
+        loss = self.adv_loss(y_real, ones) / y_real.numel()
+        loss += self.adv_loss(y_fake, zeros) / y_fake.numel()
 
         return loss
 
@@ -85,10 +80,25 @@ class Trainer(object):
         ones_i = torch.ones_like(y_fake_i, device=self.device)
         ones_v = torch.ones_like(y_fake_v, device=self.device)
 
-        loss = self.gan_criterion(y_fake_i, ones_i) / y_fake_i.numel()
-        loss += self.gan_criterion(y_fake_v, ones_v) / y_fake_v.numel()
+        loss = self.adv_loss(y_fake_i, ones_i) / y_fake_i.numel()
+        loss += self.adv_loss(y_fake_v, ones_v) / y_fake_v.numel()
 
         return loss
+
+    def snapshot_models(self):
+        for name, _model in self.models.items():
+            model: nn.Module = copy.deepcopy(_model.cpu())
+            torch.save(model, self.model_snapshots_path / f"{name}_model.pth")
+
+    def snapshot_params(self):
+        for name, model in self.models.items():
+            torch.save(
+                model.state_dict(),
+                str(
+                    self.model_snapshots_path
+                    / f"{name}_params_{self.iteration:05d}.pytorch"
+                ),
+            )
 
     def log_rgbd_videos(self, color_videos, depth_videos, tag, iteration):
         # (B, C, T, H, W)
@@ -101,21 +111,18 @@ class Trainer(object):
 
         # concat them in horizontal direction
         grid_video = np.concatenate([grid_d, grid_c], axis=-1)
+
+        # (N, T, C, H, W)
+        grid_video = grid_video.transpose(0, 2, 1, 3, 4)
         self.logger.tf_log_video(tag, grid_video, iteration)
 
-    def save_graph(self, model, name):
-        graph_dir = self.log_dir / "graph"
-        graph_dir.mkdir(parents=True, exist_ok=True)
-        graph = make_dot(model.forward_dummy().mean(), dict(model.named_parameters()))
-        graph.render(str(graph_dir / name))
-
-    def generate_samples(self, sgen, cgen, iteration):
-        sgen.eval()
+    def generate_samples(self, dgen, cgen, iteration):
+        dgen.eval()
         cgen.eval()
 
         with torch.no_grad():
             # fake samples
-            d = sgen.sample_videos(self.num_log)
+            d = dgen.sample_videos(self.num_log)
             c = cgen.forward_videos(d)
             d = d.repeat(1, 3, 1, 1, 1)  # to have 3-channels
             self.log_rgbd_videos(c, d, "fake_samples", iteration)
@@ -123,7 +130,7 @@ class Trainer(object):
             self.logger.tf_log_histgram(c[:, :, 0], "colorspace_fake", iteration)
 
             # fake samples with fixed depth
-            d = sgen.sample_videos(1)
+            d = dgen.sample_videos(1)
             d = d.repeat(self.num_log, 1, 1, 1, 1)
             c = cgen.forward_videos(d)
             d = d.repeat(1, 3, 1, 1, 1)
@@ -136,62 +143,57 @@ class Trainer(object):
             self.logger.tf_log_histgram(d[:, :, 0], "depthspace_real", iteration)
             self.logger.tf_log_histgram(c[:, :, 0], "colorspace_real", iteration)
 
-    def snapshot_models(self, sgen, cgen, idis, vdis, i):
-        torch.save(
-            sgen.state_dict(), str(self.log_dir / "sgen_{:05d}.pytorch".format(i))
-        )
-        torch.save(
-            cgen.state_dict(), str(self.log_dir / "cgen_{:05d}.pytorch".format(i))
-        )
-        torch.save(
-            idis.state_dict(), str(self.log_dir / "idis_{:05d}.pytorch".format(i))
-        )
-        torch.save(
-            vdis.state_dict(), str(self.log_dir / "vdis_{:05d}.pytorch".format(i))
-        )
+    def train(self):
+        # retrieve models and move them if necessary
+        dgen, cgen = self.models["dgen"], self.models["cgen"]
+        idis, vdis = self.models["idis"], self.models["vdis"]
 
-    def train(self, sgen, cgen, idis, vdis):
+        # move the models to proper device
+        n_gpus = torch.cuda.device_count()
+        if n_gpus > 1:
+            dgen, cgen = nn.DataParallel(dgen), nn.DataParallel(cgen)
+            idis, vdis = nn.DataParallel(idis), nn.DataParallel(vdis)
 
-        if self.use_cuda:
-            sgen.cuda()
-            cgen.cuda()
-            idis.cuda()
-            vdis.cuda()
+        dgen, cgen = dgen.to(self.device), cgen.to(self.device)
+        idis, vdis = idis.to(self.device), vdis.to(self.device)
 
-        # save the graphs
-        self.save_graph(sgen, "sgen")
-        self.save_graph(cgen, "cgen")
-        self.save_graph(idis, "idis")
-        self.save_graph(vdis, "vdis")
+        # optimizers
+        opt_gen = self.optimizers["gen"]
+        opt_idis, opt_vdis = self.optimizers["idis"], self.optimizers["vdis"]
 
-        # create optimizers
-        configs = self.configs
-        gen_params = list(sgen.parameters()) + list(cgen.parameters())
-        opt_gen = self.create_optimizer(gen_params, **configs["gen"]["optimizer"])
-        opt_idis = self.create_optimizer(
-            idis.parameters(), **configs["idis"]["optimizer"]
-        )
-        opt_vdis = self.create_optimizer(
-            vdis.parameters(), **configs["vdis"]["optimizer"]
-        )
+        # define metrics
+        self.logger.define("iteration", MetricType.Number)
+        self.logger.define("epoch", MetricType.Number)
+        self.logger.define("loss_gen", MetricType.Loss)
+        self.logger.define("loss_idis", MetricType.Loss)
+        self.logger.define("loss_vdis", MetricType.Loss)
+
+        # save hyperparams
+        hparams = {}
+        for key in ["seed", "batchsize"]:
+            hparams[key] = self.configs[key]
+        self.logger.tf_hyperparams(hparams)
 
         # training loop
-        logger = self.logger
-        iteration = 1
-        for i in range(self.n_epochs):
+        self.logger.warning(f"Start training, device: {self.device}, n_gpus: {n_gpus}")
+        self.logger.print_header()
+        for i in range(self.configs["n_epochs"]):
+            self.epoch += 1
             for x_real in iter(self.dataloader):
+                self.iteration += 1
+
                 # --------------------
                 # phase generator
                 # --------------------
-                sgen.train()
+                dgen.train()
                 cgen.train()
                 opt_gen.zero_grad()
 
                 # fake batch
-                d = sgen.sample_videos(self.batchsize)
+                d = dgen.sample_videos(self.configs["batchsize"])
                 c = cgen.forward_videos(d)
                 x_fake = torch.cat([c.float(), d.float()], 1)
-                t_rand = np.random.randint(self.video_length)
+                t_rand = np.random.randint(self.configs["video_length"])
                 y_fake_i = idis(x_fake[:, :, t_rand])
                 y_fake_v = vdis(x_fake)
 
@@ -212,8 +214,7 @@ class Trainer(object):
 
                 # real batch
                 x_real = x_real.float()
-                x_real = x_real.cuda() if self.use_cuda else x_real
-                x_real = Variable(x_real)
+                x_real = x_real.to(self.device)
 
                 y_real_i = idis(x_real[:, :, t_rand])
                 y_real_v = vdis(x_real)
@@ -235,31 +236,31 @@ class Trainer(object):
                 # --------------------
                 # others
                 # --------------------
-                logger.update("loss_gen", loss_gen.cpu().item())
-                logger.update("loss_idis", loss_idis.cpu().item())
-                logger.update("loss_vdis", loss_vdis.cpu().item())
+
+                # update metrics
+                self.logger.update("iteration", self.iteration)
+                self.logger.update("epoch", self.epoch)
+                self.logger.update("loss_gen", loss_gen.cpu().item())
+                self.logger.update("loss_idis", loss_idis.cpu().item())
+                self.logger.update("loss_vdis", loss_vdis.cpu().item())
 
                 # log
-                if iteration % configs["log_interval"] == 0:
+                if self.iteration % self.configs["log_interval"] == 0:
                     self.logger.log()
-                    self.logger.tf_log()
-                    self.logger.init()
+                    self.logger.tf_log_scalars("iteration")
+                    self.logger.clear()
 
                 # snapshot models
-                if iteration % configs["snapshot_interval"] == 0:
-                    self.snapshot_models(sgen, cgen, idis, vdis, iteration)
+                if self.iteration % self.configs["snapshot_interval"] == 0:
+                    self.snapshot_params()
 
                 # log samples
-                if iteration % configs["log_samples_interval"] == 0:
-                    self.generate_samples(sgen, cgen, iteration)
+                if self.iteration % self.configs["log_samples_interval"] == 0:
+                    self.generate_samples(dgen, cgen, self.iteration)
 
                 # evaluate generated samples
-                # if iteration % configs["evaluation_interval"] == 0:
+                # if iteration % self.configs["evaluation_interval"] == 0:
                 #    pass
 
-                iteration += 1
-                logger.update("iteration", 1)
-            logger.update("epoch", 1)
-
-        self.snapshot_models(sgen, cgen, idis, vdis, iteration)
-        self.generate_samples(sgen, cgen, iteration)
+        self.snapshot_models(dgen, cgen, idis, vdis, self.iteration)
+        self.generate_samples(dgen, cgen, self.iteration)

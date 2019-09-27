@@ -8,5 +8,5 @@ data/raw/*
 !data/processed
 data/processed/*
 result/*
-notebooks/*
+notebook/*
 !.gitkeep

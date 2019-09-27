@@ -1,0 +1,2 @@
+tb:
+	tensorboard --logdir result

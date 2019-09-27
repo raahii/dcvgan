@@ -7,7 +7,9 @@ logzero
 
 opencv-python
 scikit-video
-tensorboardX
-git+https://github.com/szagoruyko/pytorchviz
+
+protobuf==3.9.1
+tensorboard==2.0.0
+tensorboardX==1.8
 
 face_recognition
