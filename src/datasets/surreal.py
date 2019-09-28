@@ -5,7 +5,6 @@ from pathlib import Path
 import numpy as np
 import skvideo.io
 from joblib import Parallel, delayed
-from scipy.misc import imresize
 
 import dataio
 import utils
