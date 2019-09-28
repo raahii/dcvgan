@@ -3,10 +3,12 @@ scipy
 joblib
 tqdm
 pyyaml
-logzero
 
 opencv-python
 scikit-video
+
+torch==1.2.0
+torchvision==0.4.0
 
 protobuf==3.9.1
 tensorboard==2.0.0

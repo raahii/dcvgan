@@ -1,19 +1,9 @@
-import pprint as pp
-
 import numpy as np
-
 import torch
 import torch.nn as nn
 import torch.nn.init as init
-import torch.nn.parallel
-import torch.utils.data
-from datasets.surreal import segm_part_colors
-from torch.autograd import Variable
 
-if torch.cuda.is_available():
-    T = torch.cuda
-else:
-    T = torch
+import utils
 
 
 class DebugLayer(nn.Module):
@@ -39,11 +29,16 @@ class Noise(nn.Module):
         super(Noise, self).__init__()
         self.use_noise = use_noise
         self.sigma = sigma
+        self.device = utils.current_device()
 
     def forward(self, x):
         if self.use_noise:
-            return x + self.sigma * Variable(
-                T.FloatTensor(x.size()).normal_(), requires_grad=False
+            return (
+                x
+                + self.sigma
+                * torch.empty(
+                    x.size(), device=self.device, requires_grad=False
+                ).normal_()
             )
         return x
 
@@ -81,6 +76,7 @@ class DepthVideoGenerator(nn.Module):
         )
 
         self.apply(init_normal)
+        self.device = utils.current_device()
 
     def sample_z_m(self, batchsize):
         h_t = [self.get_gru_initial_state(batchsize)]
@@ -96,7 +92,9 @@ class DepthVideoGenerator(nn.Module):
         return z_m
 
     def sample_z_content(self, batchsize):
-        content = Variable(T.FloatTensor(batchsize, self.dim_z_content).normal_())
+        content = torch.empty(
+            (batchsize, self.dim_z_content), device=self.device
+        ).normal_()
         content = content.repeat(1, self.video_length).view(
             batchsize * self.video_length, -1
         )  # same operation as np.repeat
@@ -121,10 +119,10 @@ class DepthVideoGenerator(nn.Module):
         return h
 
     def get_gru_initial_state(self, batchsize):
-        return Variable(T.FloatTensor(batchsize, self.dim_z_motion).normal_())
+        return torch.empty((batchsize, self.dim_z_motion), device=self.device).normal_()
 
     def get_iteration_noise(self, batchsize):
-        return Variable(T.FloatTensor(batchsize, self.dim_z_motion).normal_())
+        return torch.empty((batchsize, self.dim_z_motion), device=self.device).normal_()
 
     def forward_dummy(self):
         return self.sample_videos(2)
@@ -244,12 +242,13 @@ class ColorVideoGenerator(nn.Module):
         self.n_up_blocks = len(self.up_blocks)
 
         self.apply(init_normal)
+        self.device = utils.current_device()
 
     def make_hidden(self, batchsize):
-        z = T.FloatTensor(batchsize, self.dim_z).normal_()
+        z = torch.empty((batchsize, self.dim_z), device=self.device).normal_()
         z = z.unsqueeze(-1).unsqueeze(-1)  # (B, dim_z, 1, 1)
 
-        return Variable(z)
+        return z
 
     def forward(self, x, z):
         # video to images
@@ -286,13 +285,6 @@ class ColorVideoGenerator(nn.Module):
 
         return ys
 
-    def forward_dummy(self):
-        shape = (2, self.in_ch, 64, 64)
-        z = self.make_hidden(2)
-        x = Variable(T.FloatTensor(*shape).normal_())
-
-        return self(x, z)
-
 
 class ImageDiscriminator(nn.Module):
     def __init__(self, ch1, ch2, use_noise=False, noise_sigma=None, ndf=64):
@@ -326,6 +318,8 @@ class ImageDiscriminator(nn.Module):
             nn.Conv2d(ndf * 4, 1, 4, 2, 1, bias=False),
         )
 
+        self.device = utils.current_device()
+
     def forward(self, x):
         hc = self.conv_c(x[:, 0 : self.ch1])
         hd = self.conv_d(x[:, self.ch1 : self.ch1 + self.ch2])
@@ -333,12 +327,6 @@ class ImageDiscriminator(nn.Module):
         h = self.main(h).squeeze()
 
         return h
-
-    def forward_dummy(self):
-        shape = (2, self.ch1 + self.ch2, 64, 64)
-        x = Variable(T.FloatTensor(*shape).normal_())
-
-        return self(x)
 
 
 class VideoDiscriminator(nn.Module):
@@ -376,6 +364,7 @@ class VideoDiscriminator(nn.Module):
             Noise(use_noise, sigma=noise_sigma),
             nn.Conv3d(ndf * 4, 1, 4, stride=(1, 2, 2), padding=(0, 1, 1), bias=False),
         )
+        self.device = utils.current_device()
 
     def forward(self, x):
         hc = self.conv_c(x[:, 0 : self.ch1])
@@ -384,12 +373,6 @@ class VideoDiscriminator(nn.Module):
         h = self.main(h).squeeze()
 
         return h
-
-    def forward_dummy(self):
-        shape = (2, self.ch1 + self.ch2, 16, 64, 64)
-        x = Variable(T.FloatTensor(*shape).normal_())
-
-        return self(x)
 
 
 if __name__ == "__main__":
