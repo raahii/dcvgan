@@ -1,0 +1,20 @@
+name: Run test codes
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v1
+
+    - name: build image
+      env:
+        SHA: ${{ github.sha }}
+      run: docker build . -f Dockerfile.cpu --tag raahii/dcvgan:${SHA}
+
+    - name: run image
+      env:
+        SHA: ${{ github.sha }}
+      run: docker run --rm --name dcvgan-test raahii/dcvgan:${SHA} python src/models_test.py
