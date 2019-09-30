@@ -112,13 +112,13 @@ class Trainer(object):
         grid_video = grid_video.transpose(0, 2, 1, 3, 4)
         self.logger.tf_log_video(tag, grid_video, iteration)
 
-    def generate_samples(self, dgen, cgen, iteration):
-        dgen.eval()
+    def generate_samples(self, mgen, cgen, iteration):
+        mgen.eval()
         cgen.eval()
 
         with torch.no_grad():
             # fake samples
-            d = dgen.sample_videos(self.num_log)
+            d = mgen.sample_videos(self.num_log)
             c = cgen.forward_videos(d)
             d = d.repeat(1, 3, 1, 1, 1)  # to have 3-channels
             self.log_rgbd_videos(c, d, "fake_samples", iteration)
@@ -126,7 +126,7 @@ class Trainer(object):
             self.logger.tf_log_histgram(c[:, :, 0], "colorspace_fake", iteration)
 
             # fake samples with fixed depth
-            d = dgen.sample_videos(1)
+            d = mgen.sample_videos(1)
             d = d.repeat(self.num_log, 1, 1, 1, 1)
             c = cgen.forward_videos(d)
             d = d.repeat(1, 3, 1, 1, 1)
@@ -141,16 +141,16 @@ class Trainer(object):
 
     def train(self):
         # retrieve models and move them if necessary
-        dgen, cgen = self.models["dgen"], self.models["cgen"]
+        mgen, cgen = self.models["mgen"], self.models["cgen"]
         idis, vdis = self.models["idis"], self.models["vdis"]
 
         # move the models to proper device
         n_gpus = torch.cuda.device_count()
         if n_gpus > 1:
-            dgen, cgen = nn.DataParallel(dgen), nn.DataParallel(cgen)
+            mgen, cgen = nn.DataParallel(mgen), nn.DataParallel(cgen)
             idis, vdis = nn.DataParallel(idis), nn.DataParallel(vdis)
 
-        dgen, cgen = dgen.to(self.device), cgen.to(self.device)
+        mgen, cgen = mgen.to(self.device), cgen.to(self.device)
         idis, vdis = idis.to(self.device), vdis.to(self.device)
 
         # optimizers
@@ -181,12 +181,12 @@ class Trainer(object):
                 # --------------------
                 # phase generator
                 # --------------------
-                dgen.train()
+                mgen.train()
                 cgen.train()
                 opt_gen.zero_grad()
 
                 # fake batch
-                d = dgen.sample_videos(self.configs["batchsize"])
+                d = mgen.sample_videos(self.configs["batchsize"])
                 c = cgen.forward_videos(d)
                 x_fake = torch.cat([c.float(), d.float()], 1)
                 t_rand = np.random.randint(self.configs["video_length"])
@@ -252,11 +252,11 @@ class Trainer(object):
 
                 # log samples
                 if self.iteration % self.configs["log_samples_interval"] == 0:
-                    self.generate_samples(dgen, cgen, self.iteration)
+                    self.generate_samples(mgen, cgen, self.iteration)
 
                 # evaluate generated samples
                 # if iteration % self.configs["evaluation_interval"] == 0:
                 #    pass
 
-        self.snapshot_models(dgen, cgen, idis, vdis, self.iteration)
-        self.generate_samples(dgen, cgen, self.iteration)
+        self.snapshot_models(mgen, cgen, idis, vdis, self.iteration)
+        self.generate_samples(mgen, cgen, self.iteration)

@@ -14,8 +14,8 @@ from datasets.isogd import preprocess_isogd_dataset
 from datasets.mug import preprocess_mug_dataset
 from datasets.surreal import preprocess_surreal_dataset
 from logger import Logger
-from models import (ColorVideoGenerator, DepthVideoGenerator,
-                    ImageDiscriminator, VideoDiscriminator)
+from models import (ColorVideoGenerator, ImageDiscriminator,
+                    MidFeatureVideoGenerator, VideoDiscriminator)
 from trainer import Trainer
 
 
@@ -77,7 +77,7 @@ def main():
     logger = Logger(log_path, tb_path)
 
     # prepare models
-    dgen = DepthVideoGenerator(
+    mgen = MidFeatureVideoGenerator(
         1,
         configs["gen"]["dim_z_content"],
         configs["gen"]["dim_z_motion"],
@@ -104,10 +104,10 @@ def main():
         configs["vdis"]["noise_sigma"],
         configs["vdis"]["ndf"],
     )
-    models = {"dgen": dgen, "cgen": cgen, "idis": idis, "vdis": vdis}
+    models = {"mgen": mgen, "cgen": cgen, "idis": idis, "vdis": vdis}
 
     # optimizers
-    opt_gen = create_optimizer([dgen, cgen], **configs["gen"]["optimizer"])
+    opt_gen = create_optimizer([mgen, cgen], **configs["gen"]["optimizer"])
     opt_idis = create_optimizer([idis], **configs["idis"]["optimizer"])
     opt_vdis = create_optimizer([vdis], **configs["vdis"]["optimizer"])
     optimizers = {"gen": opt_gen, "idis": opt_idis, "vdis": opt_vdis}

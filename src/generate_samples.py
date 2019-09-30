@@ -1,14 +1,14 @@
 import argparse
 from pathlib import Path
 
+import torch
+import yaml
 from joblib import Parallel, delayed
 from tqdm import tqdm
 
 import dataio
-import torch
 import utils
-import yaml
-from models import ColorVideoGenerator, DepthVideoGenerator
+from models import ColorVideoGenerator, MidFeatureVideoGenerator
 
 
 def load_weight(model, weight_path):
@@ -24,22 +24,22 @@ def load_weight(model, weight_path):
 
 
 def load_genrators(result_dir, configs, iteration):
-    dgen = DepthVideoGenerator(
+    mgen = MidFeatureVideoGenerator(
         configs["gen"]["dim_z_content"],
         configs["gen"]["dim_z_motion"],
         configs["video_length"],
     )
     cgen = ColorVideoGenerator(configs["gen"]["dim_z_color"])
 
-    weight_path = result_dir / "dgen_{:05d}.pytorch".format(iteration)
-    load_weight(dgen, weight_path)
-    dgen.eval()
+    weight_path = result_dir / "mgen_{:05d}.pytorch".format(iteration)
+    load_weight(mgen, weight_path)
+    mgen.eval()
 
     weight_path = result_dir / "cgen_{:05d}.pytorch".format(iteration)
     load_weight(cgen, weight_path)
     cgen.eval()
 
-    return dgen, cgen
+    return mgen, cgen
 
 
 def main():
@@ -56,7 +56,7 @@ def main():
         configs = yaml.load(f)
 
     # load model with weights
-    dgen, cgen = load_genrators(args.result_dir, configs, args.iteration)
+    mgen, cgen = load_genrators(args.result_dir, configs, args.iteration)
 
     # generate samples
     color_dir = args.save_dir / "color"
@@ -64,7 +64,7 @@ def main():
     color_dir.mkdir(parents=True, exist_ok=True)
     depth_dir.mkdir(parents=True, exist_ok=True)
     for i in tqdm(range(0, args.n_samples, args.batchsize)):
-        dv = dgen.sample_videos(args.batchsize)
+        dv = mgen.sample_videos(args.batchsize)
         cv = cgen.forward_videos(dv)
         dv = dv.repeat(1, 3, 1, 1, 1)
 

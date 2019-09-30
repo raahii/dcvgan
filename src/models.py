@@ -43,9 +43,9 @@ class Noise(nn.Module):
         return x
 
 
-class DepthVideoGenerator(nn.Module):
+class MidFeatureVideoGenerator(nn.Module):
     def __init__(self, out_ch, dim_z_content, dim_z_motion, ngf=64, video_length=16):
-        super(DepthVideoGenerator, self).__init__()
+        super(MidFeatureVideoGenerator, self).__init__()
 
         self.out_ch = out_ch
         self.dim_z_content = dim_z_content
