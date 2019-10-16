@@ -14,8 +14,12 @@ from datasets.isogd import preprocess_isogd_dataset
 from datasets.mug import preprocess_mug_dataset
 from datasets.surreal import preprocess_surreal_dataset
 from logger import Logger
-from models import (ColorVideoGenerator, ImageDiscriminator,
-                    MidFeatureVideoGenerator, VideoDiscriminator)
+from models import (
+    ColorVideoGenerator,
+    DepthVideoGenerator,
+    ImageDiscriminator,
+    VideoDiscriminator,
+)
 from trainer import Trainer
 
 
@@ -77,7 +81,7 @@ def main():
     logger = Logger(log_path, tb_path)
 
     # prepare models
-    mgen = MidFeatureVideoGenerator(
+    mgen = DepthVideoGenerator(
         1,
         configs["gen"]["dim_z_content"],
         configs["gen"]["dim_z_motion"],

@@ -43,9 +43,9 @@ class Noise(nn.Module):
         return x
 
 
-class MidFeatureVideoGenerator(nn.Module):
+class BaseMidVideoGenerator(nn.Module):
     def __init__(self, out_ch, dim_z_content, dim_z_motion, ngf=64, video_length=16):
-        super(MidFeatureVideoGenerator, self).__init__()
+        super(BaseMidVideoGenerator, self).__init__()
 
         self.out_ch = out_ch
         self.dim_z_content = dim_z_content
@@ -126,6 +126,13 @@ class MidFeatureVideoGenerator(nn.Module):
 
     def forward_dummy(self):
         return self.sample_videos(2)
+
+
+class DepthVideoGenerator(BaseMidVideoGenerator):
+    def __init__(self, out_ch, dim_z_content, dim_z_motion, ngf=64, video_length=16):
+        super(DepthVideoGenerator, self).__init__(
+            out_ch, dim_z_content, dim_z_motion, ngf, video_length
+        )
 
 
 class Inconv(nn.Module):
@@ -380,4 +387,5 @@ if __name__ == "__main__":
     # print(DepthVideoGenerator(1, 40, 10).forward_dummy().shape)
     # print(ColorVideoGenerator(10).forward_dummy().shape)
     # print(ImageDiscriminator(1, 3).forward_dummy().shape)
-    print(VideoDiscriminator(1, 3).forward_dummy().shape)
+    # print(VideoDiscriminator(1, 3).forward_dummy().shape)
+    pass

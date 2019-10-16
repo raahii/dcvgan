@@ -17,4 +17,5 @@ jobs:
     - name: run image
       env:
         SHA: ${{ github.sha }}
-      run: docker run --rm --name dcvgan-test raahii/dcvgan:${SHA} python src/models_test.py
+      run: docker run --rm --name dcvgan-test raahii/dcvgan:${SHA} python src/models_test.py && python src/utils_test.py
+

@@ -2,8 +2,12 @@ import unittest
 
 import torch
 
-from models import (ColorVideoGenerator, ImageDiscriminator,
-                    MidFeatureVideoGenerator, VideoDiscriminator)
+from models import (
+    ColorVideoGenerator,
+    DepthVideoGenerator,
+    ImageDiscriminator,
+    VideoDiscriminator,
+)
 
 IMAGE_SIZE = 64
 VIDEO_LENGTH = 16
@@ -21,7 +25,7 @@ class TestModelForward(unittest.TestCase):
             "dim_z_motion": 10,
             "video_length": VIDEO_LENGTH,
         }
-        mgen = MidFeatureVideoGenerator(**inputs)
+        mgen = DepthVideoGenerator(**inputs)
         videos = mgen.sample_videos(BATCHSIZE)
 
         expected = (BATCHSIZE, DEPTH_CH, VIDEO_LENGTH, IMAGE_SIZE, IMAGE_SIZE)
