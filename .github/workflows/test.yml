@@ -12,10 +12,10 @@ jobs:
     - name: build image
       env:
         SHA: ${{ github.sha }}
-      run: docker build . -f Dockerfile.cpu --tag raahii/dcvgan:${SHA}
+      run: docker build . -f Dockerfile.cpu --tag dcvgan.cpu:${SHA}
 
     - name: run image
       env:
         SHA: ${{ github.sha }}
-      run: docker run --rm --name dcvgan-test raahii/dcvgan:${SHA} python src/models_test.py && python src/utils_test.py
+      run: docker run --rm --name test-dcvgan dcvgan.cpu:${SHA} python -m unittest discover -s src -p '*_test.py'
 

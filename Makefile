@@ -1,5 +1,14 @@
+update-submodules:
+	git submodule update --recursive --remote
+
 setup:
 	pip install -r requirements.txt
+
+smi:
+	nvidia-smi -l 3
+
+tb:
+	tensorboard --logdir results
 
 format:
 	find . -name "*.py" | xargs isort
@@ -9,19 +18,10 @@ format:
 debug: format
 	python src/train.py --config config/debug_mug.yml
 
-smi:
-	nvidia-smi -l 3
-
-tb:
-	tensorboard --logdir results
-
 build:
 	docker build . -f Dockerfile.cpu -t dcvgan.cpu
 
 test:
 	docker run --rm --name dcvgan.cpu dcvgan.cpu \
-		python src/models_test.py && \
-		python src/utils_test.py
+		python -m unittest discover -s src -p '*_test.py'
 
-update-submodules:
-	git submodule update --recursive --remote
