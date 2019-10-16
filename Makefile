@@ -22,3 +22,6 @@ test:
 	docker run --rm --name dcvgan.cpu dcvgan.cpu \
 		python src/models_test.py && \
 		python src/utils_test.py
+
+update-submodules:
+	git submodule update --recursive --remote

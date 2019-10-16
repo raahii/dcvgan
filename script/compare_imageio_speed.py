@@ -2,14 +2,14 @@ import sys
 import time
 from pathlib import Path
 
-import numpy as np
-
 import cv2
+import numpy as np
 from benchmarker import Benchmarker
-from dataset import VideoDataset
 from PIL import Image
 from skimage import io
 from torch.utils.data import DataLoader
+
+from dataset import VideoDataset
 
 sys.path.append("src")
 
