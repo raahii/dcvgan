@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 import colorlog
-import logzero
 import numpy as np
 import torch
 from tensorboardX import SummaryWriter

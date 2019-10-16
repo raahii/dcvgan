@@ -8,7 +8,6 @@ from typing import Any, Dict
 import numpy as np
 import torch
 import torch.optim as optim
-from graphviz import Digraph
 from torch import nn
 from torch.utils.data import DataLoader
 
