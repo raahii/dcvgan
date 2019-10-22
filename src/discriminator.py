@@ -32,13 +32,13 @@ class ImageDiscriminator(nn.Module):
         self.ch1, self.ch2 = ch1, ch2
         self.use_noise = use_noise
 
-        self.conv_c = nn.Sequential(
+        self.conv_g = nn.Sequential(
             Noise(use_noise, sigma=noise_sigma),
             nn.Conv2d(self.ch1, ndf // 2, 4, 2, 1, bias=False),
             nn.LeakyReLU(0.2, inplace=True),
         )
 
-        self.conv_d = nn.Sequential(
+        self.conv_c = nn.Sequential(
             Noise(use_noise, sigma=noise_sigma),
             nn.Conv2d(self.ch2, ndf // 2, 4, 2, 1, bias=False),
             nn.LeakyReLU(0.2, inplace=True),
@@ -57,12 +57,12 @@ class ImageDiscriminator(nn.Module):
             nn.Conv2d(ndf * 4, 1, 4, 2, 1, bias=False),
         )
 
-        self.device = utils.current_device()
+        self.device = util.current_device()
 
-    def forward(self, x):
-        hc = self.conv_c(x[:, 0 : self.ch1])
-        hd = self.conv_d(x[:, self.ch1 : self.ch1 + self.ch2])
-        h = torch.cat([hc, hd], 1)
+    def forward(self, xg, xc):
+        hg = self.conv_g(xg)
+        hc = self.conv_c(xc)
+        h = torch.cat([hg, hc], 1)
         h = self.main(h).squeeze()
 
         return h
@@ -75,14 +75,14 @@ class VideoDiscriminator(nn.Module):
         self.ch1, self.ch2 = ch1, ch2
         self.use_noise = use_noise
 
-        self.conv_c = nn.Sequential(
+        self.conv_g = nn.Sequential(
             nn.Conv3d(
                 ch1, ndf // 2, 4, stride=(1, 2, 2), padding=(0, 1, 1), bias=False
             ),
             nn.LeakyReLU(0.2, inplace=True),
         )
 
-        self.conv_d = nn.Sequential(
+        self.conv_c = nn.Sequential(
             nn.Conv3d(
                 ch2, ndf // 2, 4, stride=(1, 2, 2), padding=(0, 1, 1), bias=False
             ),
@@ -105,10 +105,10 @@ class VideoDiscriminator(nn.Module):
         )
         self.device = util.current_device()
 
-    def forward(self, x):
-        hc = self.conv_c(x[:, 0 : self.ch1])
-        hd = self.conv_d(x[:, self.ch1 : self.ch1 + self.ch2])
-        h = torch.cat([hc, hd], 1)
+    def forward(self, xg, xc):
+        hg = self.conv_g(xg)
+        hc = self.conv_c(xc)
+        h = torch.cat([hg, hc], 1)
         h = self.main(h).squeeze()
 
         return h

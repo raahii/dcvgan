@@ -93,12 +93,28 @@ class BaseMidVideoGenerator(nn.Module):
 class DepthVideoGenerator(BaseMidVideoGenerator):
     """
     Generator for depth videos
-    output channel: 3
+    output channel: 1
     """
+
+    channel = 1
 
     def __init__(self, dim_z_content, dim_z_motion, ngf=64, video_length=16):
         super(DepthVideoGenerator, self).__init__(
-            1, dim_z_content, dim_z_motion, ngf, video_length
+            self.channel, dim_z_content, dim_z_motion, ngf, video_length
+        )
+
+
+class OpticalFlowVideoGenerator(BaseMidVideoGenerator):
+    """
+    Generator for optical flow video
+    output channel: 2
+    """
+
+    channel = 2
+
+    def __init__(self, dim_z_content, dim_z_motion, ngf=64, video_length=16):
+        super(OpticalFlowVideoGenerator, self).__init__(
+            self.channel, dim_z_content, dim_z_motion, ngf, video_length - 1
         )
 
 
@@ -180,11 +196,11 @@ class Outconv(nn.Module):
 
 
 class ColorVideoGenerator(nn.Module):
-    def __init__(self, in_ch, out_ch, dim_z, ngf=64):
+    def __init__(self, in_ch, dim_z, ngf=64, video_length=16):
         super(ColorVideoGenerator, self).__init__()
 
         self.in_ch = in_ch
-        self.out_ch = out_ch
+        self.out_ch = 3
         self.dim_z = dim_z
 
         self.inconv = Inconv(in_ch, ngf * 1)
@@ -210,13 +226,16 @@ class ColorVideoGenerator(nn.Module):
             ]
         )
 
-        self.outconv = Outconv(ngf * 2, out_ch)
+        self.outconv = Outconv(ngf * 2, self.out_ch)
 
         self.n_down_blocks = len(self.down_blocks)
         self.n_up_blocks = len(self.up_blocks)
 
-        self.apply(utils.init_normal)
-        self.device = utils.current_device()
+        self.apply(util.init_normal)
+        self.device = util.current_device()
+
+        self.channel = 3
+        self.video_length = video_length
 
     def make_hidden(self, batchsize):
         z = torch.empty((batchsize, self.dim_z), device=self.device).normal_()
@@ -258,12 +277,3 @@ class ColorVideoGenerator(nn.Module):
         ys = ys.permute(0, 2, 1, 3, 4)  # (B, C, T, H, W)
 
         return ys
-
-
-if __name__ == "__main__":
-    # print(dict(ColorVideoGenerator(10).named_parameters()).keys())
-    # print(DepthVideoGenerator(1, 40, 10).forward_dummy().shape)
-    # print(ColorVideoGenerator(10).forward_dummy().shape)
-    # print(ImageDiscriminator(1, 3).forward_dummy().shape)
-    # print(VideoDiscriminator(1, 3).forward_dummy().shape)
-    pass
