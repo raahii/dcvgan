@@ -9,13 +9,8 @@ jobs:
     steps:
     - uses: actions/checkout@v1
 
-    - name: build image
-      env:
-        SHA: ${{ github.sha }}
-      run: docker build . -f Dockerfile.cpu --tag dcvgan.cpu:${SHA}
-
     - name: run image
       env:
         SHA: ${{ github.sha }}
-      run: docker run --rm --name test-dcvgan dcvgan.cpu:${SHA} python -m unittest discover -s src -p '*_test.py'
+      run: docker run --rm dcvgan:cpu python -m unittest discover -s src -p '*_test.py'
 
