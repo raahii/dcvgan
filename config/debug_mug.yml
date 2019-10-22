@@ -1,5 +1,6 @@
 # experiment configs
 log_dir: "result/mug"
+tensorboard_dir: "result/mug/runs"
 experiment_name: "debug"
 
 # basic configs
@@ -9,7 +10,9 @@ seed: 0
 
 video_length: 16
 image_size: 64
-tensorboard_dir: "result/mug/runs"
+
+# geometric information type
+geometry_type: "depth"
 
 # interval
 log_interval:         5

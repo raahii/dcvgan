@@ -13,13 +13,9 @@ from dataset import VideoDataset
 from datasets.isogd import preprocess_isogd_dataset
 from datasets.mug import preprocess_mug_dataset
 from datasets.surreal import preprocess_surreal_dataset
+from discriminator import ImageDiscriminator, VideoDiscriminator
+from generator import BaseMidVideoGenerator, ColorVideoGenerator
 from logger import Logger
-from models import (
-    ColorVideoGenerator,
-    DepthVideoGenerator,
-    ImageDiscriminator,
-    VideoDiscriminator,
-)
 from trainer import Trainer
 
 
@@ -27,7 +23,7 @@ def worker_init_fn(worker_id):
     random.seed(worker_id)
 
 
-def prepare_dataset(configs):
+def new_dataset(configs):
     if configs["dataset"]["name"] not in ["mug", "isogd", "surreal"]:
         raise NotImplementedError
 
@@ -39,6 +35,16 @@ def prepare_dataset(configs):
         configs["image_size"],
         configs["dataset"]["number_limit"],
     )
+
+
+def new_geometric_generator(_type: str) -> BaseMidVideoGenerator:
+    """
+    return appropreate video generator for the geometric information type
+    """
+    if _type == "depth":
+        from generator import DepthVideoGenerator
+
+        return DepthVideoGenerator
 
 
 def create_optimizer(models: List[nn.Module], lr: float, decay: float):
@@ -64,7 +70,7 @@ def main():
     configs["config_path"] = args.config
 
     # prepare dataset
-    dataset = prepare_dataset(configs)
+    dataset = new_dataset(configs)
     dataloader = DataLoader(
         dataset,
         batch_size=configs["batchsize"],
@@ -81,8 +87,8 @@ def main():
     logger = Logger(log_path, tb_path)
 
     # prepare models
-    mgen = DepthVideoGenerator(
-        1,
+    geometry_type = configs["geometry_type"]
+    ggen = new_geometric_generator(geometry_type)(
         configs["gen"]["dim_z_content"],
         configs["gen"]["dim_z_motion"],
         configs["gen"]["ngf"],
@@ -108,10 +114,10 @@ def main():
         configs["vdis"]["noise_sigma"],
         configs["vdis"]["ndf"],
     )
-    models = {"mgen": mgen, "cgen": cgen, "idis": idis, "vdis": vdis}
+    models = {"mgen": ggen, "cgen": cgen, "idis": idis, "vdis": vdis}
 
     # optimizers
-    opt_gen = create_optimizer([mgen, cgen], **configs["gen"]["optimizer"])
+    opt_gen = create_optimizer([ggen, cgen], **configs["gen"]["optimizer"])
     opt_idis = create_optimizer([idis], **configs["idis"]["optimizer"])
     opt_vdis = create_optimizer([vdis], **configs["vdis"]["optimizer"])
     optimizers = {"gen": opt_gen, "idis": opt_idis, "vdis": opt_vdis}
