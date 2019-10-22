@@ -7,10 +7,28 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v1
+    - name: Checkout
+      uses: actions/checkout@v1
 
-    - name: run image
+    - name: Pull docker image
+      run: docker pull raahii/dcvgan:test
+
+    - name: Build image with the latest sources
+      run: docker build --cache-from raahii/dcvgan:test -t raahii/dcvgan:test -f docker/Dockerfile.cpu .
+      env:
+        DOCKER_BUILDKIT: 1
+
+    - name: Login to DockerHub
+      run: docker login -u ${DOCKER_USER} -p ${DOCKER_PASSWORD}
+      env:
+        DOCKER_USER: ${{ secrets.DOCKER_USER }}
+        DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+
+    - name: Publish image to DockerHub
+      run: docker push raahii/dcvgan:test
+
+    - name: Run image
       env:
         SHA: ${{ github.sha }}
-      run: docker run --rm dcvgan:cpu python -m unittest discover -s src -p '*_test.py'
+      run: docker run --rm raahii/dcvgan:test python -m unittest discover -s src -p '*_test.py'
 

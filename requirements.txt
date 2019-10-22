@@ -16,4 +16,4 @@ tensorboard
 tensorboardX
 moviepy
 
-face_recognition
+# face_recognition
