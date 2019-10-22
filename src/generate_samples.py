@@ -24,22 +24,22 @@ def load_weight(model, weight_path):
 
 
 def load_genrators(result_dir, configs, iteration):
-    mgen = MidFeatureVideoGenerator(
-        configs["gen"]["dim_z_content"],
-        configs["gen"]["dim_z_motion"],
+    ggen = MidFeatureVideoGenerator(
+        configs["ggen"]["dim_z_content"],
+        configs["ggen"]["dim_z_motion"],
         configs["video_length"],
     )
-    cgen = ColorVideoGenerator(configs["gen"]["dim_z_color"])
+    cgen = ColorVideoGenerator(configs["cgen"]["dim_z_color"])
 
-    weight_path = result_dir / "mgen_{:05d}.pytorch".format(iteration)
-    load_weight(mgen, weight_path)
-    mgen.eval()
+    weight_path = result_dir / "ggen_{:05d}.pytorch".format(iteration)
+    load_weight(ggen, weight_path)
+    ggen.eval()
 
     weight_path = result_dir / "cgen_{:05d}.pytorch".format(iteration)
     load_weight(cgen, weight_path)
     cgen.eval()
 
-    return mgen, cgen
+    return ggen, cgen
 
 
 def main():
@@ -56,7 +56,7 @@ def main():
         configs = yaml.load(f)
 
     # load model with weights
-    mgen, cgen = load_genrators(args.result_dir, configs, args.iteration)
+    ggen, cgen = load_genrators(args.result_dir, configs, args.iteration)
 
     # generate samples
     color_dir = args.save_dir / "color"
@@ -64,13 +64,13 @@ def main():
     color_dir.mkdir(parents=True, exist_ok=True)
     depth_dir.mkdir(parents=True, exist_ok=True)
     for i in tqdm(range(0, args.n_samples, args.batchsize)):
-        dv = mgen.sample_videos(args.batchsize)
+        dv = ggen.sample_videos(args.batchsize)
         cv = cgen.forward_videos(dv)
         dv = dv.repeat(1, 3, 1, 1, 1)
 
-        dv = utils.videos_to_numpy(dv)
+        dv = util.videos_to_numpy(dv)
         dv = dv.transpose(0, 2, 3, 4, 1)
-        cv = utils.videos_to_numpy(cv)
+        cv = util.videos_to_numpy(cv)
         cv = cv.transpose(0, 2, 3, 4, 1)
 
         Parallel(n_jobs=10, verbose=0)(

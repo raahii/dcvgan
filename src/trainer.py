@@ -53,7 +53,7 @@ class Trainer(object):
 
         self.iteration = 0
         self.epoch = 0
-        self.snapshot_models()
+        self.save_classobj()
         self.fix_seed()
 
     def fix_seed(self):
@@ -83,12 +83,12 @@ class Trainer(object):
 
         return loss
 
-    def snapshot_models(self):
+    def save_classobj(self):
         for name, _model in self.models.items():
             model: nn.Module = copy.deepcopy(_model.cpu())
             torch.save(model, self.model_snapshots_path / f"{name}_model.pth")
 
-    def snapshot_params(self):
+    def save_params(self):
         for name, model in self.models.items():
             torch.save(
                 model.state_dict(),
@@ -97,12 +97,12 @@ class Trainer(object):
 
     def log_rgbd_videos(self, color_videos, depth_videos, tag, iteration):
         # (B, C, T, H, W)
-        color_videos = utils.videos_to_numpy(color_videos)
-        depth_videos = utils.videos_to_numpy(depth_videos)
+        color_videos = util.videos_to_numpy(color_videos)
+        depth_videos = util.videos_to_numpy(depth_videos)
 
         # (1, C, T, H*rows, W*cols)
-        grid_c = utils.make_video_grid(color_videos, self.rows_log, self.cols_log)
-        grid_d = utils.make_video_grid(depth_videos, self.rows_log, self.cols_log)
+        grid_c = util.make_video_grid(color_videos, self.rows_log, self.cols_log)
+        grid_d = util.make_video_grid(depth_videos, self.rows_log, self.cols_log)
 
         # concat them in horizontal direction
         grid_video = np.concatenate([grid_d, grid_c], axis=-1)
@@ -111,13 +111,13 @@ class Trainer(object):
         grid_video = grid_video.transpose(0, 2, 1, 3, 4)
         self.logger.tf_log_video(tag, grid_video, iteration)
 
-    def generate_samples(self, mgen, cgen, iteration):
-        mgen.eval()
+    def generate_samples(self, ggen, cgen, iteration):
+        ggen.eval()
         cgen.eval()
 
         with torch.no_grad():
             # fake samples
-            d = mgen.sample_videos(self.num_log)
+            d = ggen.sample_videos(self.num_log)
             c = cgen.forward_videos(d)
             d = d.repeat(1, 3, 1, 1, 1)  # to have 3-channels
             self.log_rgbd_videos(c, d, "fake_samples", iteration)
@@ -125,7 +125,7 @@ class Trainer(object):
             self.logger.tf_log_histgram(c[:, :, 0], "colorspace_fake", iteration)
 
             # fake samples with fixed depth
-            d = mgen.sample_videos(1)
+            d = ggen.sample_videos(1)
             d = d.repeat(self.num_log, 1, 1, 1, 1)
             c = cgen.forward_videos(d)
             d = d.repeat(1, 3, 1, 1, 1)
@@ -140,20 +140,21 @@ class Trainer(object):
 
     def train(self):
         # retrieve models and move them if necessary
-        mgen, cgen = self.models["mgen"], self.models["cgen"]
+        ggen, cgen = self.models["ggen"], self.models["cgen"]
         idis, vdis = self.models["idis"], self.models["vdis"]
 
         # move the models to proper device
         n_gpus = torch.cuda.device_count()
         if n_gpus > 1:
-            mgen, cgen = nn.DataParallel(mgen), nn.DataParallel(cgen)
+            ggen, cgen = nn.DataParallel(ggen), nn.DataParallel(cgen)
             idis, vdis = nn.DataParallel(idis), nn.DataParallel(vdis)
 
-        mgen, cgen = mgen.to(self.device), cgen.to(self.device)
+        ggen, cgen = ggen.to(self.device), cgen.to(self.device)
         idis, vdis = idis.to(self.device), vdis.to(self.device)
+        geometric_info = self.configs["geometric_info"]
 
         # optimizers
-        opt_gen = self.optimizers["gen"]
+        opt_gen = self.optimizers["ggen"]
         opt_idis, opt_vdis = self.optimizers["idis"], self.optimizers["vdis"]
 
         # define metrics
@@ -174,23 +175,23 @@ class Trainer(object):
         self.logger.print_header()
         for i in range(self.configs["n_epochs"]):
             self.epoch += 1
-            for x_real in iter(self.dataloader):
+            for batch in iter(self.dataloader):
                 self.iteration += 1
 
                 # --------------------
                 # phase generator
                 # --------------------
-                mgen.train()
+                ggen.train()
                 cgen.train()
                 opt_gen.zero_grad()
 
                 # fake batch
-                d = mgen.sample_videos(self.configs["batchsize"])
-                c = cgen.forward_videos(d)
-                x_fake = torch.cat([c.float(), d.float()], 1)
-                t_rand = np.random.randint(self.configs["video_length"])
-                y_fake_i = idis(x_fake[:, :, t_rand])
-                y_fake_v = vdis(x_fake)
+                xg_fake = ggen.sample_videos(self.configs["batchsize"])
+                xc_fake = cgen.forward_videos(xg_fake)
+                tg_rand = np.random.randint(ggen.video_length)
+                tc_rand = np.random.randint(cgen.video_length)
+                y_fake_i = idis(xg_fake[:, :, tg_rand], xc_fake[:, :, tc_rand])
+                y_fake_v = vdis(xg_fake, xc_fake)
 
                 # compute loss
                 loss_gen = self.compute_gen_loss(y_fake_i, y_fake_v)
@@ -208,15 +209,19 @@ class Trainer(object):
                 opt_vdis.zero_grad()
 
                 # real batch
-                x_real = x_real.float()
-                x_real = x_real.to(self.device)
+                xc_real = batch["color"].float()
+                xc_real = xc_real.to(self.device)
 
-                y_real_i = idis(x_real[:, :, t_rand])
-                y_real_v = vdis(x_real)
+                xg_real = batch[geometric_info].float()
+                xg_real = xg_real.to(self.device)
 
-                x_fake = x_fake.detach()
-                y_fake_i = idis(x_fake[:, :, t_rand])
-                y_fake_v = vdis(x_fake)
+                y_real_i = idis(xg_real[:, :, tg_rand], xc_real[:, :, tc_rand])
+                y_real_v = vdis(xg_real, xc_real)
+
+                xg_fake = xg_fake.detach()
+                xc_fake = xc_fake.detach()
+                y_fake_i = idis(xg_fake[:, :, tg_rand], xc_fake[:, :, tc_rand])
+                y_fake_v = vdis(xg_fake, xc_fake)
 
                 # compute loss
                 loss_idis = self.compute_dis_loss(y_real_i, y_fake_i)
@@ -247,15 +252,15 @@ class Trainer(object):
 
                 # snapshot models
                 if self.iteration % self.configs["snapshot_interval"] == 0:
-                    self.snapshot_params()
+                    self.save_params()
 
                 # log samples
                 if self.iteration % self.configs["log_samples_interval"] == 0:
-                    self.generate_samples(mgen, cgen, self.iteration)
+                    self.generate_samples(ggen, cgen, self.iteration)
 
                 # evaluate generated samples
                 # if iteration % self.configs["evaluation_interval"] == 0:
                 #    pass
 
-        self.snapshot_models(mgen, cgen, idis, vdis, self.iteration)
-        self.generate_samples(mgen, cgen, self.iteration)
+        self.save_params()
+        self.generate_samples(ggen, cgen, self.iteration)

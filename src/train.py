@@ -45,6 +45,12 @@ def new_geometric_generator(_type: str) -> BaseMidVideoGenerator:
         from generator import DepthVideoGenerator
 
         return DepthVideoGenerator
+    elif _type == "optical-flow":
+        from generator import OpticalFlowVideoGenerator
+
+        return OpticalFlowVideoGenerator
+    else:
+        raise NotImplementedError
 
 
 def create_optimizer(models: List[nn.Module], lr: float, decay: float):
@@ -87,40 +93,49 @@ def main():
     logger = Logger(log_path, tb_path)
 
     # prepare models
-    geometry_type = configs["geometry_type"]
-    ggen = new_geometric_generator(geometry_type)(
-        configs["gen"]["dim_z_content"],
-        configs["gen"]["dim_z_motion"],
-        configs["gen"]["ngf"],
+    geometric_info = configs["geometric_info"]
+    ggen = new_geometric_generator(geometric_info)(
+        configs["ggen"]["dim_z_content"],
+        configs["ggen"]["dim_z_motion"],
+        configs["ggen"]["ngf"],
         configs["video_length"],
     )
 
     cgen = ColorVideoGenerator(
-        1, 3, configs["gen"]["dim_z_color"], configs["gen"]["ngf"]
+        ggen.channel,
+        configs["cgen"]["dim_z_color"],
+        configs["cgen"]["ngf"],
+        configs["video_length"],
     )
 
     idis = ImageDiscriminator(
-        1,
-        3,
+        ggen.channel,
+        cgen.channel,
         configs["idis"]["use_noise"],
         configs["idis"]["noise_sigma"],
         configs["idis"]["ndf"],
     )
 
     vdis = VideoDiscriminator(
-        1,
-        3,
+        ggen.channel,
+        cgen.channel,
         configs["vdis"]["use_noise"],
         configs["vdis"]["noise_sigma"],
         configs["vdis"]["ndf"],
     )
-    models = {"mgen": ggen, "cgen": cgen, "idis": idis, "vdis": vdis}
+    models = {"ggen": ggen, "cgen": cgen, "idis": idis, "vdis": vdis}
 
     # optimizers
-    opt_gen = create_optimizer([ggen, cgen], **configs["gen"]["optimizer"])
+    opt_ggen = create_optimizer([ggen], **configs["ggen"]["optimizer"])
+    opt_cgen = create_optimizer([cgen], **configs["cgen"]["optimizer"])
     opt_idis = create_optimizer([idis], **configs["idis"]["optimizer"])
     opt_vdis = create_optimizer([vdis], **configs["vdis"]["optimizer"])
-    optimizers = {"gen": opt_gen, "idis": opt_idis, "vdis": opt_vdis}
+    optimizers = {
+        "ggen": opt_ggen,
+        "cgen": opt_cgen,
+        "idis": opt_idis,
+        "vdis": opt_vdis,
+    }
 
     # start training
     trainer = Trainer(dataloader, logger, models, optimizers, configs)
