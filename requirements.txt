@@ -3,15 +3,17 @@ scipy
 joblib
 tqdm
 pyyaml
+colorlog
 
 opencv-python
 scikit-video
 
-torch==1.2.0
-torchvision==0.4.0
+torch==1.3.0
+torchvision
 
 protobuf==3.9.1
-tensorboard==2.0.0
-tensorboardX==1.8
+tensorboard
+tensorboardX
+moviepy
 
 face_recognition
