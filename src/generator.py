@@ -1,46 +1,8 @@
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.init as init
 
 import utils
-
-
-class DebugLayer(nn.Module):
-    def __init__(self):
-        super(DebugLayer, self).__init__()
-
-    def forward(self, x):
-        print(x.shape)
-        return x
-
-
-def init_normal(layer):
-    if type(layer) in [nn.Conv2d, nn.ConvTranspose2d]:
-        # print(layer)
-        init.normal_(layer.weight.data, 0, 0.02)
-    elif type(layer) in [nn.BatchNorm2d]:
-        init.normal_(layer.weight.data, 1.0, 0.02)
-        init.constant_(layer.bias.data, 0.0)
-
-
-class Noise(nn.Module):
-    def __init__(self, use_noise, sigma=0.2):
-        super(Noise, self).__init__()
-        self.use_noise = use_noise
-        self.sigma = sigma
-        self.device = utils.current_device()
-
-    def forward(self, x):
-        if self.use_noise:
-            return (
-                x
-                + self.sigma
-                * torch.empty(
-                    x.size(), device=self.device, requires_grad=False
-                ).normal_()
-            )
-        return x
 
 
 class BaseMidVideoGenerator(nn.Module):
@@ -75,7 +37,7 @@ class BaseMidVideoGenerator(nn.Module):
             nn.Tanh(),
         )
 
-        self.apply(init_normal)
+        self.apply(utils.init_normal)
         self.device = utils.current_device()
 
     def sample_z_m(self, batchsize):
@@ -129,9 +91,14 @@ class BaseMidVideoGenerator(nn.Module):
 
 
 class DepthVideoGenerator(BaseMidVideoGenerator):
-    def __init__(self, out_ch, dim_z_content, dim_z_motion, ngf=64, video_length=16):
+    """
+    Generator for depth videos
+    output channel: 3
+    """
+
+    def __init__(self, dim_z_content, dim_z_motion, ngf=64, video_length=16):
         super(DepthVideoGenerator, self).__init__(
-            out_ch, dim_z_content, dim_z_motion, ngf, video_length
+            1, dim_z_content, dim_z_motion, ngf, video_length
         )
 
 
@@ -248,7 +215,7 @@ class ColorVideoGenerator(nn.Module):
         self.n_down_blocks = len(self.down_blocks)
         self.n_up_blocks = len(self.up_blocks)
 
-        self.apply(init_normal)
+        self.apply(utils.init_normal)
         self.device = utils.current_device()
 
     def make_hidden(self, batchsize):
@@ -291,95 +258,6 @@ class ColorVideoGenerator(nn.Module):
         ys = ys.permute(0, 2, 1, 3, 4)  # (B, C, T, H, W)
 
         return ys
-
-
-class ImageDiscriminator(nn.Module):
-    def __init__(self, ch1, ch2, use_noise=False, noise_sigma=None, ndf=64):
-        super(ImageDiscriminator, self).__init__()
-
-        self.ch1, self.ch2 = ch1, ch2
-        self.use_noise = use_noise
-
-        self.conv_c = nn.Sequential(
-            Noise(use_noise, sigma=noise_sigma),
-            nn.Conv2d(self.ch1, ndf // 2, 4, 2, 1, bias=False),
-            nn.LeakyReLU(0.2, inplace=True),
-        )
-
-        self.conv_d = nn.Sequential(
-            Noise(use_noise, sigma=noise_sigma),
-            nn.Conv2d(self.ch2, ndf // 2, 4, 2, 1, bias=False),
-            nn.LeakyReLU(0.2, inplace=True),
-        )
-
-        self.main = nn.Sequential(
-            Noise(use_noise, sigma=noise_sigma),
-            nn.Conv2d(ndf, ndf * 2, 4, 2, 1, bias=False),
-            nn.BatchNorm2d(ndf * 2),
-            nn.LeakyReLU(0.2, inplace=True),
-            Noise(use_noise, sigma=noise_sigma),
-            nn.Conv2d(ndf * 2, ndf * 4, 4, 2, 1, bias=False),
-            nn.BatchNorm2d(ndf * 4),
-            nn.LeakyReLU(0.2, inplace=True),
-            Noise(use_noise, sigma=noise_sigma),
-            nn.Conv2d(ndf * 4, 1, 4, 2, 1, bias=False),
-        )
-
-        self.device = utils.current_device()
-
-    def forward(self, x):
-        hc = self.conv_c(x[:, 0 : self.ch1])
-        hd = self.conv_d(x[:, self.ch1 : self.ch1 + self.ch2])
-        h = torch.cat([hc, hd], 1)
-        h = self.main(h).squeeze()
-
-        return h
-
-
-class VideoDiscriminator(nn.Module):
-    def __init__(self, ch1, ch2, use_noise=False, noise_sigma=None, ndf=64):
-        super(VideoDiscriminator, self).__init__()
-
-        self.ch1, self.ch2 = ch1, ch2
-        self.use_noise = use_noise
-
-        self.conv_c = nn.Sequential(
-            nn.Conv3d(
-                ch1, ndf // 2, 4, stride=(1, 2, 2), padding=(0, 1, 1), bias=False
-            ),
-            nn.LeakyReLU(0.2, inplace=True),
-        )
-
-        self.conv_d = nn.Sequential(
-            nn.Conv3d(
-                ch2, ndf // 2, 4, stride=(1, 2, 2), padding=(0, 1, 1), bias=False
-            ),
-            nn.LeakyReLU(0.2, inplace=True),
-        )
-
-        self.main = nn.Sequential(
-            Noise(use_noise, sigma=noise_sigma),
-            nn.Conv3d(ndf, ndf * 2, 4, stride=(1, 2, 2), padding=(0, 1, 1), bias=False),
-            nn.BatchNorm3d(ndf * 2),
-            nn.LeakyReLU(0.2, inplace=True),
-            Noise(use_noise, sigma=noise_sigma),
-            nn.Conv3d(
-                ndf * 2, ndf * 4, 4, stride=(1, 2, 2), padding=(0, 1, 1), bias=False
-            ),
-            nn.BatchNorm3d(ndf * 4),
-            nn.LeakyReLU(0.2, inplace=True),
-            Noise(use_noise, sigma=noise_sigma),
-            nn.Conv3d(ndf * 4, 1, 4, stride=(1, 2, 2), padding=(0, 1, 1), bias=False),
-        )
-        self.device = utils.current_device()
-
-    def forward(self, x):
-        hc = self.conv_c(x[:, 0 : self.ch1])
-        hd = self.conv_d(x[:, self.ch1 : self.ch1 + self.ch2])
-        h = torch.cat([hc, hd], 1)
-        h = self.main(h).squeeze()
-
-        return h
 
 
 if __name__ == "__main__":
