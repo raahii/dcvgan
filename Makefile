@@ -18,14 +18,13 @@ format:
 	mypy --ignore-missing-imports .
 
 debug:
-	python src/train.py --config config/debug_mug.yml
+	python src/train.py --config config/debug_isogd.yml
 
 build:
-	docker build . -f Dockerfile.cpu -t dcvgan.cpu
+	docker build . -f Dockerfile.cpu -t raahii/dcvgan:cpu
 
 test:
-	docker run --rm --name dcvgan.cpu dcvgan.cpu \
-		python -m unittest discover -s src -p '*_test.py'
+	python -m unittest discover -s src -p '*_test.py'
 
 deploy:
 	rsync -auvz \

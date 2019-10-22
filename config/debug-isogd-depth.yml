@@ -1,50 +1,61 @@
 # experiment configs
-experiment_name: "dcvgan-isogd"
+experiment_name: "debug-isogd"
 
 # basic configs
-batchsize: 20
-n_epochs: 40
+batchsize: 2
+n_epochs: 50000
 seed: 0
 
 video_length: 16
 image_size: 64
 
-log_dir: "result/isogd"
-tensorboard_dir: "result/isogd/runs"
+tensorboard_dir: "result/mug/runs"
+log_dir: "result/isogd-debug"
+
+# geometric information type
+geometric_info: "depth"
 
 # interval
-log_interval:         100
-log_samples_interval: 5000
-snapshot_interval:    5000
-evaluation_interval:  60000
+log_interval:         5
+log_samples_interval: 5
+snapshot_interval:    5
+evaluation_interval:  5
 
 # dataset configs
 dataset:
   name: "isogd"
   path: "data/raw/isogd"
-  n_workers: 4
-  number_limit: -1
+  n_workers: 2
+  number_limit: 100
 
 # model configs
-gen:
+ggen:
   dim_z_content: 40
   dim_z_motion: 10
+  ngf: 64
+  optimizer:
+    lr: 0.0002
+    decay: 0.00001
+
+cgen:
   dim_z_color: 10
   ngf: 64
   optimizer:
     lr: 0.0002
     decay: 0.00001
-idis: 
+
+idis:
   use_noise: True
   noise_sigma: 0.1
   ndf: 64
   optimizer:
     lr: 0.0002
     decay: 0.00001
-vdis: 
+
+vdis:
   use_noise: True
   noise_sigma: 0.1
-  ndf: 64
+  ndf: 32
   optimizer:
     lr: 0.0002
     decay: 0.00001
