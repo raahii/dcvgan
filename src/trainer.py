@@ -11,7 +11,7 @@ import torch.optim as optim
 from torch import nn
 from torch.utils.data import DataLoader
 
-import utils
+import util
 from logger import Logger, MetricType
 
 
@@ -29,7 +29,7 @@ class Trainer(object):
         self.models = models
         self.optimizers = optimizers
         self.configs = configs
-        self.device = utils.current_device()
+        self.device = util.current_device()
 
         self.num_log, self.rows_log, self.cols_log = 25, 5, 5
         self.dataloader_log = DataLoader(

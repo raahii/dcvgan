@@ -7,7 +7,7 @@ from joblib import Parallel, delayed
 from tqdm import tqdm
 
 import dataio
-import utils
+import util
 from models import ColorVideoGenerator, MidFeatureVideoGenerator
 
 

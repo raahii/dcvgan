@@ -2,7 +2,7 @@ import unittest
 
 import torch
 
-from utils import current_device
+from util import current_device
 
 
 class TestUtilities(unittest.TestCase):

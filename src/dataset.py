@@ -5,7 +5,7 @@ import numpy as np
 from torch.utils.data import Dataset
 
 import dataio
-import utils
+import util
 from datasets.isogd import preprocess_isogd_dataset
 from datasets.mug import preprocess_mug_dataset
 from datasets.surreal import preprocess_surreal_dataset

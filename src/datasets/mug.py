@@ -8,7 +8,7 @@ import skvideo.io
 from joblib import Parallel, delayed
 
 import dataio
-import utils
+import util
 
 
 def preprocess_mug_dataset(dataset_path, save_path, mode, length, img_size, n_jobs=-1):

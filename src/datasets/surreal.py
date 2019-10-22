@@ -7,7 +7,7 @@ import skvideo.io
 from joblib import Parallel, delayed
 
 import dataio
-import utils
+import util
 
 segm_part_colors = np.asarray(
     [

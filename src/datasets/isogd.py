@@ -8,7 +8,7 @@ import skvideo.io
 from joblib import Parallel, delayed
 
 import dataio
-import utils
+import util
 
 
 def preprocess_isogd_dataset(

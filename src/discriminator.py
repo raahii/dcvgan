@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.init as init
 
-import utils
+import util
 
 
 class Noise(nn.Module):
@@ -11,7 +11,7 @@ class Noise(nn.Module):
         super(Noise, self).__init__()
         self.use_noise = use_noise
         self.sigma = sigma
-        self.device = utils.current_device()
+        self.device = util.current_device()
 
     def forward(self, x):
         if self.use_noise:
@@ -103,7 +103,7 @@ class VideoDiscriminator(nn.Module):
             Noise(use_noise, sigma=noise_sigma),
             nn.Conv3d(ndf * 4, 1, 4, stride=(1, 2, 2), padding=(0, 1, 1), bias=False),
         )
-        self.device = utils.current_device()
+        self.device = util.current_device()
 
     def forward(self, x):
         hc = self.conv_c(x[:, 0 : self.ch1])

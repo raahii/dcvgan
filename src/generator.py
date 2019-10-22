@@ -2,7 +2,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-import utils
+import util
 
 
 class BaseMidVideoGenerator(nn.Module):
@@ -37,8 +37,8 @@ class BaseMidVideoGenerator(nn.Module):
             nn.Tanh(),
         )
 
-        self.apply(utils.init_normal)
-        self.device = utils.current_device()
+        self.apply(util.init_normal)
+        self.device = util.current_device()
 
     def sample_z_m(self, batchsize):
         h_t = [self.get_gru_initial_state(batchsize)]
