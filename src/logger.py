@@ -114,8 +114,10 @@ class Logger(object):
         init registerd merics values
         """
         for _, metric in self.metrics.items():
-            if metric.mtype != MetricType.Loss:
+            if metric.mtype == MetricType.Loss:
                 metric.value = []
+            elif metric.mtype == MetricType.Number:
+                metric.value = 0
 
     def update(self, name: str, value: Any):
         """
@@ -222,33 +224,3 @@ class Logger(object):
 
     def critical(self, msg: str):
         self._logger.critical(msg)
-
-
-if __name__ == "__main__":
-    import random
-    from os.path import expanduser
-
-    # init logger
-    home = Path(expanduser("~"))
-    out_path = home / "tmp/log"
-    tfb_path = home / "tmp/log/tf"
-    logger = Logger(out_path, tfb_path)
-    print(logger.metric_keys())
-
-    # add dummy metric
-    logger.define("foo", MetricType.Number)
-    logger.define("bar", MetricType.Loss)
-    print(logger.metric_keys())
-
-    logger.print_header()
-
-    # update metric value and print log
-    for i in range(10):
-        logger.update("iteration", i % 2)
-        logger.update("epoch", i // 2)
-        logger.update("foo", random.randint(0, 100))
-        logger.update("bar", random.randint(0, 10))
-        logger.update("bar", random.randint(0, 10))
-        logger.update("bar", random.randint(0, 10))
-        time.sleep(1.0)
-        logger.log()
