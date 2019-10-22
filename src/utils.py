@@ -1,6 +1,7 @@
-import face_recognition
 import numpy as np
 import torch
+import torch.nn as nn
+import torch.nn.init as init
 from PIL import Image
 
 
@@ -14,35 +15,36 @@ def current_device() -> torch.device:
         return torch.device("cpu")
 
 
-def detect_face(video_tensor, num_frames_to_use=6):
-    """
-    detect human face in a video and return average position.
-
-    Parameters
-    ----------
-    video_tensor: numpy.array
-        video tensor in the shape of (frame, height, width, channel)
-
-    num_frames_to_use : int
-        num frames to detect face
-    """
-
-    frames = np.linspace(
-        0, len(video_tensor), num_frames_to_use, endpoint=False
-    ).astype(np.int)
-
-    locs = []
-    for t in frames:
-        locations = face_recognition.face_locations(video_tensor[t])
-        if len(locations) != 0:
-            locs.append(np.asarray(list(locations[0])))
-
-    locs = np.asarray(locs)
-    if len(locs) == 0:
-        return [-1, -1, -1, -1]
-    else:
-        mean = locs.mean(axis=0).astype(np.int)
-        return mean
+# def detect_face(video_tensor, num_frames_to_use=6):
+#     """
+#     detect human face in a video and return average position.
+#
+#     Parameters
+#     ----------
+#     video_tensor: numpy.array
+#         video tensor in the shape of (frame, height, width, channel)
+#
+#     num_frames_to_use : int
+#         num frames to detect face
+#     """
+#     import face_recognition
+#
+#     frames = np.linspace(
+#         0, len(video_tensor), num_frames_to_use, endpoint=False
+#     ).astype(np.int)
+#
+#     locs = []
+#     for t in frames:
+#         locations = face_recognition.face_locations(video_tensor[t])
+#         if len(locations) != 0:
+#             locs.append(np.asarray(list(locations[0])))
+#
+#     locs = np.asarray(locs)
+#     if len(locs) == 0:
+#         return [-1, -1, -1, -1]
+#     else:
+#         mean = locs.mean(axis=0).astype(np.int)
+#         return mean
 
 
 def images_to_numpy(tensor):
@@ -129,3 +131,21 @@ def make_video_grid(videos, rows, cols):
 
 def min_max_norm(x):
     return (x - x.min()) / (x.max() - x.min())
+
+
+class DebugLayer(nn.Module):
+    def __init__(self):
+        super(DebugLayer, self).__init__()
+
+    def forward(self, x):
+        print(x.shape)
+        return x
+
+
+def init_normal(layer):
+    if type(layer) in [nn.Conv2d, nn.ConvTranspose2d]:
+        # print(layer)
+        init.normal_(layer.weight.data, 0, 0.02)
+    elif type(layer) in [nn.BatchNorm2d]:
+        init.normal_(layer.weight.data, 1.0, 0.02)
+        init.constant_(layer.bias.data, 0.0)
