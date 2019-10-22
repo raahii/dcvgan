@@ -2,7 +2,7 @@ import unittest
 
 import torch
 
-from models import ColorVideoGenerator, DepthVideoGenerator
+from generator import ColorVideoGenerator, DepthVideoGenerator
 
 IMAGE_SIZE = 64
 VIDEO_LENGTH = 16
@@ -15,8 +15,8 @@ COLOR_CH = 3
 class TestModelForward(unittest.TestCase):
     def test_depth_video_generator(self):
         inputs = {"dim_z_content": 30, "dim_z_motion": 10, "video_length": VIDEO_LENGTH}
-        mgen = DepthVideoGenerator(**inputs)
-        videos = mgen.sample_videos(BATCHSIZE)
+        ggen = DepthVideoGenerator(**inputs)
+        videos = ggen.sample_videos(BATCHSIZE)
 
         expected = (BATCHSIZE, DEPTH_CH, VIDEO_LENGTH, IMAGE_SIZE, IMAGE_SIZE)
         self.assertEqual(expected, videos.shape)

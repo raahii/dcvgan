@@ -2,7 +2,7 @@ import unittest
 
 import torch
 
-from models import ImageDiscriminator, VideoDiscriminator
+from discriminator import ImageDiscriminator, VideoDiscriminator
 
 IMAGE_SIZE = 64
 VIDEO_LENGTH = 16
