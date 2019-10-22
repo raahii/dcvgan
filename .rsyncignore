@@ -1,0 +1,11 @@
+.idea
+.DS_Store
+.git*
+.python-version
+__pycache__
+.mypy_cache
+
+evaluation/models/weights/*
+data
+result
+deploy.sh

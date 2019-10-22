@@ -4,18 +4,20 @@ update-submodules:
 setup:
 	pip install -r requirements.txt
 
+docker-release:
+
 smi:
 	nvidia-smi -l 3
 
 tb:
-	tensorboard --logdir results
+	tensorboard --logdir results --host 0.0.0.0
 
 format:
 	find . -name "*.py" | xargs isort
 	black -t py36 . --exclude "data" --exclude "result" --exclude ".mypy_cache"
 	mypy --ignore-missing-imports .
 
-debug: format
+debug:
 	python src/train.py --config config/debug_mug.yml
 
 build:
@@ -28,13 +30,5 @@ test:
 deploy:
 	rsync -auvz \
 				--delete \
-				--exclude='.DS_Store' \
-				--exclude='.git*' \
-				--exclude='.python-version' \
-				--exclude='__pycache__' \
-				--exclude='evaluation/models/weights/*' \
-				--exclude='data' \
-				--exclude='result' \
-				--exclude='deploy.sh' \
-				--exclude='.mypy_cache' \
+				--exclude-from=.rsyncignore \
 				$(shell ghq root)/github.com/raahii/dcvgan/ labo:~/study/dcvgan/
