@@ -1,3 +1,6 @@
+from pathlib import Path
+from typing import Tuple
+
 import cv2
 import numpy as np
 import scipy.io
@@ -5,18 +8,69 @@ import skvideo.io
 from PIL import Image
 
 
-def read_img(path):
+def read_img(path: Path, grayscale: bool = False):
     """
     Read a image using opencv function
+
+    Parameters
+    ----------
+    path : pathlib.Path or string
+        path to image
     """
-    return cv2.imread(str(path))[:, :, ::-1]
+    img = cv2.imread(str(path))
+    if grayscale:
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        img = np.expand_dims(img, -1)
+    else:
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+    return img
 
 
-def write_img(img, path):
+def write_img(img: np.ndarray, path: Path):
     """
     Write a image using opencv function
+
+    Parameters
+    ----------
+    img:
+        image tensor in the shape of (height, width, channel)
+
+    path : pathlib.Path or string
+        path to image
     """
-    Image.fromarray(img).save(str(path))
+
+    cv2.imwrite(str(path), cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
+
+
+def resize_img(img: np.ndarray, size: Tuple, mode: str = "linear"):
+    """
+    Resize image using opencv function
+
+    Parameters
+    ----------
+    img: np.ndarray
+        image tensor in the shape of (height, width, channel)
+
+    size : Tuple
+        shape (height, width)
+
+    mode: str
+        resize algorithm. choices:
+        - "nearest"
+        - "linear"
+        - "area"
+        - "cubic"
+        - "lanczos4"
+    """
+    cv_modes = {
+        "nearest": cv2.INTER_NEAREST,
+        "linear": cv2.INTER_LINEAR,
+        "area": cv2.INTER_AREA,
+        "cubic": cv2.INTER_CUBIC,
+        "lanczos4": cv2.INTER_LANCZOS4,
+    }
+    return cv2.resize(img, size, interpolation=cv_modes[mode])
 
 
 def save_video_as_images(video_tensor, path):
