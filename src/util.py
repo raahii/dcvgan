@@ -1,3 +1,6 @@
+from typing import List
+
+import cv2
 import numpy as np
 import torch
 import torch.nn as nn
@@ -95,6 +98,18 @@ def make_video_grid(videos, rows, cols):
     videos = videos[None]
 
     return videos
+
+
+def calc_optical_flow(video: np.ndarray):
+    flows: List[np.ndarray] = []
+
+    for i in range(len(video) - 1):
+        f1 = cv2.cvtColor(video[i], cv2.COLOR_BGR2GRAY)
+        f2 = cv2.cvtColor(video[i + 1], cv2.COLOR_BGR2GRAY)
+        flow = cv2.calcOpticalFlowFarneback(f1, f2, None, 0.5, 3, 15, 3, 5, 1.2, 0)
+        flows.append(flow)
+
+    return np.stack(flows)
 
 
 def min_max_norm(x):
