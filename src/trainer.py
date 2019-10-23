@@ -95,48 +95,51 @@ class Trainer(object):
                 self.model_snapshots_path / f"{name}_params_{self.iteration:05d}.pth",
             )
 
-    def log_rgbd_videos(self, color_videos, depth_videos, tag, iteration):
-        # (B, C, T, H, W)
-        color_videos = util.videos_to_numpy(color_videos)
-        depth_videos = util.videos_to_numpy(depth_videos)
+    def log_samples(self, ggen, cgen, iteration):
+        def deform(video):
+            # cast torch.tensor to np.ndarray, shape:(B,C,T,H,W)
+            video = util.videos_to_numpy(video)
 
-        # (1, C, T, H*rows, W*cols)
-        grid_c = util.make_video_grid(color_videos, self.rows_log, self.cols_log)
-        grid_d = util.make_video_grid(depth_videos, self.rows_log, self.cols_log)
+            # arrange videos in a grid:, shape(1,C,T,H*rows,W*cols)
+            video = util.make_video_grid(video, self.rows_log, self.cols_log)
 
-        # concat them in horizontal direction
-        grid_video = np.concatenate([grid_d, grid_c], axis=-1)
+            return video
 
-        # (N, T, C, H, W)
-        grid_video = grid_video.transpose(0, 2, 1, 3, 4)
-        self.logger.tf_log_video(tag, grid_video, iteration)
-
-    def generate_samples(self, ggen, cgen, iteration):
         ggen.eval()
         cgen.eval()
 
         with torch.no_grad():
-            # fake samples
-            d = ggen.sample_videos(self.num_log)
-            c = cgen.forward_videos(d)
-            d = d.repeat(1, 3, 1, 1, 1)  # to have 3-channels
-            self.log_rgbd_videos(c, d, "fake_samples", iteration)
-            self.logger.tf_log_histgram(d[:, :, 0], "depthspace_fake", iteration)
-            self.logger.tf_log_histgram(c[:, :, 0], "colorspace_fake", iteration)
+            # generate fake samples
+            xg_fake = ggen.sample_videos(self.num_log)
+            xc_fake = cgen.forward_videos(xg_fake)
+            if self.geometric_info == "depth":
+                xg_fake = xg_fake.repeat(1, 3, 1, 1, 1)  # to have 3-channels
 
-            # fake samples with fixed depth
-            d = ggen.sample_videos(1)
-            d = d.repeat(self.num_log, 1, 1, 1, 1)
-            c = cgen.forward_videos(d)
-            d = d.repeat(1, 3, 1, 1, 1)
-            self.log_rgbd_videos(c, d, "fake_samples_fixed_depth", iteration)
+            # log histgram of fake samples
+            self.logger.tf_log_histgram(xg_fake[:, :, 0], "depthspace_fake", iteration)
+            self.logger.tf_log_histgram(xc_fake[:, :, 0], "colorspace_fake", iteration)
 
-            # real samples
-            v = next(self.dataloader_log.__iter__())
-            c, d = v[:, 0:3], v[:, 3:4].repeat(1, 3, 1, 1, 1)
-            self.log_rgbd_videos(c, d, "real_samples", iteration)
-            self.logger.tf_log_histgram(d[:, :, 0], "depthspace_real", iteration)
-            self.logger.tf_log_histgram(c[:, :, 0], "colorspace_real", iteration)
+            # log fake samples
+            xg_fake, xc_fake = deform(xg_fake), deform(xc_fake)
+            x_fake = np.concatenate([xg_fake, xc_fake], axis=-1)  # concat
+            x_fake = x_fake.transpose(0, 2, 1, 3, 4)  # (N, T, C, H, W)
+            self.logger.tf_log_video("fake_samples", x_fake, iteration)
+
+            # retrieve real samples
+            batch = next(self.dataloader_log.__iter__())
+            xg_real, xc_real = batch[self.geometric_info], batch["color"]
+            if self.geometric_info == "depth":
+                xg_real = xg_real.repeat(1, 3, 1, 1, 1)  # to have 3-channels
+
+            # log histgram of real samples
+            self.logger.tf_log_histgram(xg_real[:, :, 0], "depthspace_real", iteration)
+            self.logger.tf_log_histgram(xc_real[:, :, 0], "colorspace_real", iteration)
+
+            # log fake samples
+            xg_real, xc_real = deform(xg_real), deform(xc_real)
+            x_real = np.concatenate([xg_real, xc_real], axis=-1)  # concat
+            x_real = x_real.transpose(0, 2, 1, 3, 4)  # (N, T, C, H, W)
+            self.logger.tf_log_video("real_samples", x_real, iteration)
 
     def train(self):
         # retrieve models and move them if necessary
