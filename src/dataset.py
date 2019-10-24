@@ -24,6 +24,7 @@ class VideoDataset(Dataset):
         number_limit=-1,
         mode="train",
         geometric_info="depth",
+        extension="jpg"
     ):
         # TODO: Now only supporting mode 'train'.
         root_path = PROCESSED_PATH / name / mode
@@ -54,6 +55,7 @@ class VideoDataset(Dataset):
         self.video_list = video_list
         self.video_length = video_length
         self.geometric_info = geometric_info
+        self.ext = extension
 
     def __len__(self):
         return len(self.video_list)
@@ -71,22 +73,22 @@ class VideoDataset(Dataset):
             frames_to_read = range(t, t + self.video_length)
 
         # read color video
-        placeholder = str(path / "color" / "{:03d}.jpg")
+        placeholder = str(path / "color" / ("{:03d}." + self.ext))
         color_video = [dataio.read_img(placeholder.format(i)) for i in frames_to_read]
         color_video = np.stack(color_video)
         color_video = color_video.transpose(3, 0, 1, 2)  # change to channel first
-        color_video = color_video / 128.0 - 1.0  # change value range
+        color_video = color_video / 127.5 - 1.0  # change value range
 
         # read geometric infomation video
         if self.geometric_info == "depth":
-            placeholder = str(path / self.geometric_info / "{:03d}.jpg")
+            placeholder = str(path / self.geometric_info / ("{:03d}." + self.ext))
             geo_video = [
                 dataio.read_img(placeholder.format(i), grayscale=True)
                 for i in frames_to_read
             ]
             geo_video = np.stack(geo_video)
             geo_video = geo_video.transpose(3, 0, 1, 2)  # change to channel first
-            geo_video = geo_video / 128.0 - 1.0  # change value range
+            geo_video = geo_video / 127.5 - 1.0  # change value range
         else:
             raise NotImplementedError
 
