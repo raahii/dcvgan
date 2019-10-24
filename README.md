@@ -82,7 +82,7 @@ cd dcvgan
   Easy. Thanks :whale:
 
   ```shell
-  docker build -t dcvgan
+  docker build -t dcvgan -f docker/Dockerfile.gpu .
   docker run --runtime=nvidia -v $(pwd):/home/user/dcvgan -it dcvgan
   ```
   
@@ -97,7 +97,7 @@ cd dcvgan
   pip install -r requirements.txt
   ```
   
-  For detail, please refer my [Dockerfile](https://github.com/raahii/dcvgan/blob/master/Dockerfile).
+  For detail, please refer my [Dockerfile](https://github.com/raahii/dcvgan/blob/master/docker/Dockerfile.gpu).
 
 
 ### 2. Prepare the dataset
