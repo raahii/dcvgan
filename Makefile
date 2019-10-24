@@ -10,7 +10,7 @@ smi:
 	nvidia-smi -l 3
 
 tb:
-	tensorboard --logdir results --host 0.0.0.0
+	tensorboard --logdir result --host 0.0.0.0
 
 format:
 	find . -name "*.py" | xargs isort
@@ -18,16 +18,16 @@ format:
 	mypy --ignore-missing-imports .
 
 debug:
-	python src/train.py --config config/debug_isogd.yml
+	python src/train.py --config config/debug-isogd-depth.yml
 
 build:
 	docker build . -f Dockerfile.cpu -t raahii/dcvgan:cpu
 
 test:
-	python -m unittest discover -s src -p '*_test.py'
+	python -m unittest discover -s src/test -p 'test_*.py'
 
 deploy:
 	rsync -auvz \
-				--delete \
-				--exclude-from=.rsyncignore \
-				$(shell ghq root)/github.com/raahii/dcvgan/ labo:~/study/dcvgan/
+	      --delete \
+	      --exclude-from=.rsyncignore \
+	      $(shell ghq root)/github.com/raahii/dcvgan/ labo:~/study/dcvgan/

@@ -152,8 +152,9 @@ class Logger(object):
                 s = "{}".format(m.value)
             elif m.mtype == MetricType.Loss:
                 if len(m.value) == 0:
-                    raise Exception(f"Metric {k} has no values.")
-                s = "{:0.3f}".format(sum(m.value) / len(m.value))
+                    s = " - "
+                else:
+                    s = "{:0.3f}".format(sum(m.value) / len(m.value))
             elif m.mtype == MetricType.Time:
                 _value = int(m.value)
                 s = str(datetime.timedelta(seconds=_value))
