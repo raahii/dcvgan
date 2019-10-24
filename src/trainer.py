@@ -30,8 +30,11 @@ class Trainer(object):
         self.optimizers = optimizers
         self.configs = configs
         self.device = util.current_device()
+        self.geometric_info = configs["geometric_info"]
 
         self.num_log, self.rows_log, self.cols_log = 25, 5, 5
+
+        # dataloader for logging real samples on tensorboard
         self.dataloader_log = DataLoader(
             self.dataloader.dataset,
             batch_size=self.num_log,
@@ -54,16 +57,6 @@ class Trainer(object):
         self.iteration = 0
         self.epoch = 0
         self.save_classobj()
-        self.fix_seed()
-
-    def fix_seed(self):
-        seed = self.configs["seed"]
-        random.seed(seed)
-        np.random.seed(seed)
-        torch.manual_seed(seed)
-        torch.cuda.manual_seed_all(seed)
-        torch.backends.cudnn.deterministic = True
-        torch.backends.cudnn.benchmark = False
 
     def compute_dis_loss(self, y_real, y_fake):
         ones = torch.ones_like(y_real, device=self.device)
@@ -154,10 +147,9 @@ class Trainer(object):
 
         ggen, cgen = ggen.to(self.device), cgen.to(self.device)
         idis, vdis = idis.to(self.device), vdis.to(self.device)
-        geometric_info = self.configs["geometric_info"]
 
         # optimizers
-        opt_gen = self.optimizers["ggen"]
+        opt_ggen, opt_cgen = self.optimizers["ggen"], self.optimizers["cgen"]
         opt_idis, opt_vdis = self.optimizers["idis"], self.optimizers["vdis"]
 
         # define metrics
@@ -180,17 +172,21 @@ class Trainer(object):
             self.epoch += 1
             for batch in iter(self.dataloader):
                 self.iteration += 1
+                self.logger.update("iteration", self.iteration)
+                self.logger.update("epoch", self.epoch)
 
                 # --------------------
                 # phase generator
                 # --------------------
                 ggen.train()
                 cgen.train()
-                opt_gen.zero_grad()
+                ggen.zero_grad()
+                cgen.zero_grad()
 
                 # fake batch
                 xg_fake = ggen.sample_videos(self.configs["batchsize"])
                 xc_fake = cgen.forward_videos(xg_fake)
+
                 tg_rand = np.random.randint(ggen.video_length)
                 tc_rand = np.random.randint(cgen.video_length)
                 y_fake_i = idis(xg_fake[:, :, tg_rand], xc_fake[:, :, tc_rand])
@@ -199,23 +195,29 @@ class Trainer(object):
                 # compute loss
                 loss_gen = self.compute_gen_loss(y_fake_i, y_fake_v)
 
-                # update weights
-                loss_gen.backward()
-                opt_gen.step()
+                if self.iteration % self.configs["dis_update_ratio"] == 0:
+                    # update weights
+                    loss_gen.backward()
+                    opt_ggen.step()
+                    opt_cgen.step()
+
+                self.logger.update("loss_gen", loss_gen.cpu().item())
+
+                # train_generator = not train_generator
 
                 # --------------------
                 # phase discriminator
                 # --------------------
                 idis.train()
-                opt_idis.zero_grad()
                 vdis.train()
-                opt_vdis.zero_grad()
+                idis.zero_grad()
+                vdis.zero_grad()
 
                 # real batch
                 xc_real = batch["color"].float()
                 xc_real = xc_real.to(self.device)
 
-                xg_real = batch[geometric_info].float()
+                xg_real = batch[self.geometric_info].float()
                 xg_real = xg_real.to(self.device)
 
                 y_real_i = idis(xg_real[:, :, tg_rand], xc_real[:, :, tc_rand])
@@ -232,21 +234,16 @@ class Trainer(object):
 
                 # update weights
                 loss_idis.backward()
-                opt_idis.step()
                 loss_vdis.backward()
+                opt_idis.step()
                 opt_vdis.step()
+
+                self.logger.update("loss_idis", loss_idis.cpu().item())
+                self.logger.update("loss_vdis", loss_vdis.cpu().item())
 
                 # --------------------
                 # others
                 # --------------------
-
-                # update metrics
-                self.logger.update("iteration", self.iteration)
-                self.logger.update("epoch", self.epoch)
-                self.logger.update("loss_gen", loss_gen.cpu().item())
-                self.logger.update("loss_idis", loss_idis.cpu().item())
-                self.logger.update("loss_vdis", loss_vdis.cpu().item())
-
                 # log
                 if self.iteration % self.configs["log_interval"] == 0:
                     self.logger.log()
@@ -259,7 +256,7 @@ class Trainer(object):
 
                 # log samples
                 if self.iteration % self.configs["log_samples_interval"] == 0:
-                    self.generate_samples(ggen, cgen, self.iteration)
+                    self.log_samples(ggen, cgen, self.iteration)
 
                 # evaluate generated samples
                 # if iteration % self.configs["evaluation_interval"] == 0:

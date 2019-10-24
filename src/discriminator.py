@@ -15,9 +15,8 @@ class Noise(nn.Module):
 
     def forward(self, x):
         if self.use_noise:
-            return (
-                x
-                + self.sigma
+            x += (
+                self.sigma
                 * torch.empty(
                     x.size(), device=self.device, requires_grad=False
                 ).normal_()
@@ -49,15 +48,13 @@ class ImageDiscriminator(nn.Module):
             nn.Conv2d(ndf, ndf * 2, 4, 2, 1, bias=False),
             nn.BatchNorm2d(ndf * 2),
             nn.LeakyReLU(0.2, inplace=True),
-
             Noise(use_noise, sigma=noise_sigma),
             nn.Conv2d(ndf * 2, ndf * 4, 4, 2, 1, bias=False),
             nn.BatchNorm2d(ndf * 4),
             nn.LeakyReLU(0.2, inplace=True),
-
             Noise(use_noise, sigma=noise_sigma),
             nn.Conv2d(ndf * 4, 1, 4, 2, 1, bias=False),
-            nn.Sigmoid()
+            nn.Sigmoid(),
         )
 
         self.device = util.current_device()
@@ -97,17 +94,15 @@ class VideoDiscriminator(nn.Module):
             nn.Conv3d(ndf, ndf * 2, 4, stride=(1, 2, 2), padding=(0, 1, 1), bias=False),
             nn.BatchNorm3d(ndf * 2),
             nn.LeakyReLU(0.2, inplace=True),
-
             Noise(use_noise, sigma=noise_sigma),
             nn.Conv3d(
                 ndf * 2, ndf * 4, 4, stride=(1, 2, 2), padding=(0, 1, 1), bias=False
             ),
             nn.BatchNorm3d(ndf * 4),
             nn.LeakyReLU(0.2, inplace=True),
-
             Noise(use_noise, sigma=noise_sigma),
             nn.Conv3d(ndf * 4, 1, 4, stride=(1, 2, 2), padding=(0, 1, 1), bias=False),
-            nn.Sigmoid()
+            nn.Sigmoid(),
         )
         self.device = util.current_device()
 

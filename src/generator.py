@@ -37,7 +37,6 @@ class BaseMidVideoGenerator(nn.Module):
             nn.Tanh(),
         )
 
-        self.apply(util.init_normal)
         self.device = util.current_device()
 
     def sample_z_m(self, batchsize):
@@ -231,7 +230,6 @@ class ColorVideoGenerator(nn.Module):
         self.n_down_blocks = len(self.down_blocks)
         self.n_up_blocks = len(self.up_blocks)
 
-        self.apply(util.init_normal)
         self.device = util.current_device()
 
         self.channel = 3

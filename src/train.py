@@ -3,24 +3,35 @@ import random
 from pathlib import Path
 from typing import Dict, List
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import yaml
 from torch.utils.data import DataLoader
 
+import util
 from dataset import VideoDataset
-from preprocess.isogd import preprocess_isogd_dataset
-from preprocess.mug import preprocess_mug_dataset
-from preprocess.surreal import preprocess_surreal_dataset
 from discriminator import ImageDiscriminator, VideoDiscriminator
 from generator import BaseMidVideoGenerator, ColorVideoGenerator
 from logger import Logger
+from preprocess.isogd import preprocess_isogd_dataset
+from preprocess.mug import preprocess_mug_dataset
+from preprocess.surreal import preprocess_surreal_dataset
 from trainer import Trainer
 
 
 def worker_init_fn(worker_id):
     random.seed(worker_id)
+
+
+def fix_seed(value):
+    random.seed(value)
+    np.random.seed(value)
+    torch.manual_seed(value)
+    torch.cuda.manual_seed_all(value)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = True
 
 
 def new_dataset(configs):
@@ -75,6 +86,9 @@ def main():
         configs = yaml.load(f, Loader=yaml.FullLoader)
     configs["config_path"] = args.config
 
+    # fix seed
+    fix_seed(configs["seed"])
+
     # prepare dataset
     dataset = new_dataset(configs)
     dataloader = DataLoader(
@@ -93,8 +107,7 @@ def main():
     logger = Logger(log_path, tb_path)
 
     # prepare models
-    geometric_info = configs["geometric_info"]
-    ggen = new_geometric_generator(geometric_info)(
+    ggen = new_geometric_generator(configs["geometric_info"])(
         configs["ggen"]["dim_z_content"],
         configs["ggen"]["dim_z_motion"],
         configs["ggen"]["ngf"],
@@ -124,6 +137,10 @@ def main():
         configs["vdis"]["ndf"],
     )
     models = {"ggen": ggen, "cgen": cgen, "idis": idis, "vdis": vdis}
+
+    # init weights
+    for m in models.values():
+        m.apply(util.init_weights)
 
     # optimizers
     opt_ggen = create_optimizer([ggen], **configs["ggen"]["optimizer"])
