@@ -6,9 +6,9 @@ from torch.utils.data import Dataset
 
 import dataio
 import util
-from datasets.isogd import preprocess_isogd_dataset
-from datasets.mug import preprocess_mug_dataset
-from datasets.surreal import preprocess_surreal_dataset
+from preprocess.isogd import preprocess_isogd_dataset
+from preprocess.mug import preprocess_mug_dataset
+from preprocess.surreal import preprocess_surreal_dataset
 
 PROCESSED_PATH = Path("data/processed")
 

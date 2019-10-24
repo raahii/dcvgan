@@ -10,9 +10,9 @@ import yaml
 from torch.utils.data import DataLoader
 
 from dataset import VideoDataset
-from datasets.isogd import preprocess_isogd_dataset
-from datasets.mug import preprocess_mug_dataset
-from datasets.surreal import preprocess_surreal_dataset
+from preprocess.isogd import preprocess_isogd_dataset
+from preprocess.mug import preprocess_mug_dataset
+from preprocess.surreal import preprocess_surreal_dataset
 from discriminator import ImageDiscriminator, VideoDiscriminator
 from generator import BaseMidVideoGenerator, ColorVideoGenerator
 from logger import Logger
