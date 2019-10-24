@@ -46,7 +46,7 @@ class Trainer(object):
         for p in [self.gen_samples_path, self.model_snapshots_path]:
             p.mkdir(parents=True, exist_ok=True)
 
-        self.adv_loss = nn.BCEWithLogitsLoss(reduction="sum")
+        self.adv_loss = nn.BCELoss(reduction="sum")
 
         # copy config file to log directory
         shutil.copy(configs["config_path"], str(self.logger.path / "config.yml"))

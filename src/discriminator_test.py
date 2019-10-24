@@ -33,6 +33,8 @@ class TestModelForward(unittest.TestCase):
         expected = (BATCHSIZE, 4, 4)
         self.assertEqual(expected, output.shape)
 
+        self.assertTrue(output.min() >= 0 and output.max() <= 1)
+
     def test_video_discriminator(self):
         inputs = {
             "ch1": GEOMTRIC_INFO_CH,
