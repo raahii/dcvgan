@@ -1,4 +1,11 @@
-data
+data/*
+!data/raw
+data/raw/*
+!data/raw/mock
+!data/processed
+data/processed/*
+!data/processed/mock
+
 evaluation
 notebook
 result
