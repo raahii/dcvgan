@@ -263,4 +263,5 @@ class Trainer(object):
                 #    pass
 
         self.save_params()
-        self.generate_samples(ggen, cgen, self.iteration)
+        # self.generate_samples(ggen, cgen, self.iteration)
+        self.log_samples(ggen, cgen, self.iteration)

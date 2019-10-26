@@ -8,38 +8,17 @@ from tqdm import tqdm
 
 import dataio
 import util
-from models import ColorVideoGenerator, MidFeatureVideoGenerator
 
 
-def load_weight(model, weight_path):
-    if torch.cuda.is_available():
-        model.cuda()
-        model_data = torch.load(weight_path)
-    else:
-        model_data = torch.load(weight_path, map_location="cpu")
-
-    model.load_state_dict(model_data)
+def load_model(model_path, params_path):
+    model = torch.load(model_path, map_location="cpu")
+    params = torch.load(params_path, map_location="cpu")
+    model.load_state_dict(params)
+    model = model.to(util.current_device())
+    model.device = util.current_device()
+    model.eval()
 
     return model
-
-
-def load_genrators(result_dir, configs, iteration):
-    ggen = MidFeatureVideoGenerator(
-        configs["ggen"]["dim_z_content"],
-        configs["ggen"]["dim_z_motion"],
-        configs["video_length"],
-    )
-    cgen = ColorVideoGenerator(configs["cgen"]["dim_z_color"])
-
-    weight_path = result_dir / "ggen_{:05d}.pytorch".format(iteration)
-    load_weight(ggen, weight_path)
-    ggen.eval()
-
-    weight_path = result_dir / "cgen_{:05d}.pytorch".format(iteration)
-    load_weight(cgen, weight_path)
-    cgen.eval()
-
-    return ggen, cgen
 
 
 def main():
@@ -53,10 +32,17 @@ def main():
 
     # read config file
     with open(args.result_dir / "config.yml") as f:
-        configs = yaml.load(f)
+        configs = yaml.load(f, Loader=yaml.FullLoader)
 
     # load model with weights
-    ggen, cgen = load_genrators(args.result_dir, configs, args.iteration)
+    ggen = load_model(
+        args.result_dir / "models" / "ggen_model.pth",
+        args.result_dir / "models" / f"ggen_params_{args.iteration:05d}.pth",
+    )
+    cgen = load_model(
+        args.result_dir / "models" / "cgen_model.pth",
+        args.result_dir / "models" / f"cgen_params_{args.iteration:05d}.pth",
+    )
 
     # generate samples
     color_dir = args.save_dir / "color"
@@ -64,25 +50,30 @@ def main():
     color_dir.mkdir(parents=True, exist_ok=True)
     depth_dir.mkdir(parents=True, exist_ok=True)
     for i in tqdm(range(0, args.n_samples, args.batchsize)):
-        dv = ggen.sample_videos(args.batchsize)
-        cv = cgen.forward_videos(dv)
-        dv = dv.repeat(1, 3, 1, 1, 1)
+        with torch.no_grad():
+            xg = ggen.sample_videos(args.batchsize)
+            xc = cgen.forward_videos(xg)
 
-        dv = util.videos_to_numpy(dv)
-        dv = dv.transpose(0, 2, 3, 4, 1)
-        cv = util.videos_to_numpy(cv)
-        cv = cv.transpose(0, 2, 3, 4, 1)
+        if configs["geometric_info"] == "depth":
+            xg = xg.repeat(1, 3, 1, 1, 1)
+        else:
+            raise NotImplementedError
+
+        xg = util.videos_to_numpy(xg)
+        xg = xg.transpose(0, 2, 3, 4, 1)
+        xc = util.videos_to_numpy(xc)
+        xc = xc.transpose(0, 2, 3, 4, 1)
 
         Parallel(n_jobs=10, verbose=0)(
             [
                 delayed(dataio.write_video)(d, depth_dir / "{:06d}.mp4".format(i + j))
-                for j, d in enumerate(dv)
+                for j, d in enumerate(xg)
             ]
         )
         Parallel(n_jobs=10, verbose=0)(
             [
                 delayed(dataio.write_video)(c, color_dir / "{:06d}.mp4".format(i + j))
-                for j, c in enumerate(cv)
+                for j, c in enumerate(xc)
             ]
         )
 

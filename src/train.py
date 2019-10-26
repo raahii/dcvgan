@@ -13,7 +13,7 @@ from torch.utils.data import DataLoader
 import util
 from dataset import VideoDataset
 from discriminator import ImageDiscriminator, VideoDiscriminator
-from generator import BaseMidVideoGenerator, ColorVideoGenerator
+from generator import ColorVideoGenerator, new_geometric_generator
 from logger import Logger
 from preprocess.isogd import preprocess_isogd_dataset
 from preprocess.mug import preprocess_mug_dataset
@@ -46,22 +46,6 @@ def new_dataset(configs):
         configs["image_size"],
         configs["dataset"]["number_limit"],
     )
-
-
-def new_geometric_generator(_type: str) -> BaseMidVideoGenerator:
-    """
-    return appropreate video generator for the geometric information type
-    """
-    if _type == "depth":
-        from generator import DepthVideoGenerator
-
-        return DepthVideoGenerator
-    elif _type == "optical-flow":
-        from generator import OpticalFlowVideoGenerator
-
-        return OpticalFlowVideoGenerator
-    else:
-        raise NotImplementedError
 
 
 def create_optimizer(models: List[nn.Module], lr: float, decay: float):

@@ -275,3 +275,19 @@ class ColorVideoGenerator(nn.Module):
         ys = ys.permute(0, 2, 1, 3, 4)  # (B, C, T, H, W)
 
         return ys
+
+
+def new_geometric_generator(_type: str) -> BaseMidVideoGenerator:
+    """
+    return appropreate video generator for the geometric information type
+    """
+    if _type == "depth":
+        from generator import DepthVideoGenerator
+
+        return DepthVideoGenerator
+    elif _type == "optical-flow":
+        from generator import OpticalFlowVideoGenerator
+
+        return OpticalFlowVideoGenerator
+    else:
+        raise NotImplementedError
