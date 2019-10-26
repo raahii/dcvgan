@@ -15,8 +15,9 @@ class Noise(nn.Module):
 
     def forward(self, x):
         if self.use_noise:
-            x += (
-                self.sigma
+            return (
+                x
+                + self.sigma
                 * torch.empty(
                     x.size(), device=self.device, requires_grad=False
                 ).normal_()
