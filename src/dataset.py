@@ -24,7 +24,7 @@ class VideoDataset(Dataset):
         number_limit=-1,
         mode="train",
         geometric_info="depth",
-        extension="jpg"
+        extension="jpg",
     ):
         # TODO: Now only supporting mode 'train'.
         root_path = PROCESSED_PATH / name / mode
@@ -77,7 +77,7 @@ class VideoDataset(Dataset):
         color_video = [dataio.read_img(placeholder.format(i)) for i in frames_to_read]
         color_video = np.stack(color_video)
         color_video = color_video.transpose(3, 0, 1, 2)  # change to channel first
-        color_video = color_video / 127.5 - 1.0  # change value range
+        color_video = color_video.astype(np.float32) / 127.5 - 1.0  # change value range
 
         # read geometric infomation video
         if self.geometric_info == "depth":
@@ -88,7 +88,7 @@ class VideoDataset(Dataset):
             ]
             geo_video = np.stack(geo_video)
             geo_video = geo_video.transpose(3, 0, 1, 2)  # change to channel first
-            geo_video = geo_video / 127.5 - 1.0  # change value range
+            geo_video = geo_video.astype(np.float32) / 127.5 - 1.0  # change value range
         else:
             raise NotImplementedError
 
