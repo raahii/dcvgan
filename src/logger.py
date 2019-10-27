@@ -66,20 +66,30 @@ class Logger(object):
         self.define("iteration", MetricType.Number, 99)
         self.define("elapsed_time", MetricType.Time, -1)
 
+        self.indent = "  "
+
     def new_logging_module(self, name: str, log_file: Path) -> logging.Logger:
         # specify format
-        log_format: str = "%(asctime)s - " "%(message)s"
-        colorlog_format: str = "%(log_color)s " f"{log_format}"
-        colorlog.basicConfig(format=colorlog_format)
+        log_format: str = "[%(asctime)s] %(message)s"
+        date_format: str = "%Y-%m-%d %H:%M:%S"
 
         # init module
         logger: logging.Logger = logging.getLogger(name)
         logger.setLevel(logging.DEBUG)
 
-        # add handler to output file setting
+        # console handler
+        ch = logging.StreamHandler()
+        ch.setLevel(logging.DEBUG)
+        formatter = colorlog.ColoredFormatter(
+            "%(log_color)s" + log_format, datefmt=date_format
+        )
+        ch.setFormatter(formatter)
+        logger.addHandler(ch)
+
+        # file handler
         fh = logging.FileHandler(str(log_file))
         fh.setLevel(logging.DEBUG)
-        formatter = logging.Formatter(log_format)
+        formatter = logging.Formatter(log_format, datefmt=date_format)
         fh.setFormatter(formatter)
         logger.addHandler(fh)
 
@@ -138,7 +148,7 @@ class Logger(object):
         log_string = ""
         for name in self.metrics.keys():
             log_string += "{:>13} ".format(name)
-        self.warning(log_string)
+        self.info(log_string)
 
     def log(self):
         """
@@ -165,7 +175,7 @@ class Logger(object):
         for s in log_strings:
             log_string += "{:>13} ".format(s)
 
-        self.debug(log_string)
+        self.info(log_string)
 
     def tf_log_scalars(self, x_axis_metric: str):
         """
@@ -211,17 +221,17 @@ class Logger(object):
     def tf_hyperparams(self, values: Dict[str, Any]):
         self.tf_writer.add_hparams(values, {})
 
-    def info(self, msg: str):
-        self._logger.info(msg)
+    def info(self, msg: str, level=0):
+        self._logger.info(self.indent * level + msg)
 
-    def debug(self, msg: str):
-        self._logger.debug(msg)
+    def debug(self, msg: str, level=0):
+        self._logger.debug(self.indent * level + msg)
 
-    def warning(self, msg: str):
-        self._logger.warning(msg)
+    def warning(self, msg: str, level=0):
+        self._logger.warning(self.indent * level + msg)
 
-    def error(self, msg: str):
-        self._logger.error(msg)
+    def error(self, msg: str, level=0):
+        self._logger.error(self.indent * level + msg)
 
-    def critical(self, msg: str):
-        self._logger.critical(msg)
+    def critical(self, msg: str, level=0):
+        self._logger.critical(self.indent * level + msg)
