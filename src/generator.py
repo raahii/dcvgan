@@ -1,3 +1,5 @@
+import json
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -53,13 +55,11 @@ class BaseMidVideoGenerator(nn.Module):
         return z_m
 
     def sample_z_content(self, batchsize):
-        content = torch.empty(
-            (batchsize, self.dim_z_content), device=self.device
-        ).normal_()
-        content = content.repeat(1, self.video_length).view(
+        z_c = torch.empty((batchsize, self.dim_z_content), device=self.device).normal_()
+        z_c = z_c.repeat(1, self.video_length).view(
             batchsize * self.video_length, -1
         )  # same operation as np.repeat
-        return content
+        return z_c
 
     def sample_z_video(self, batchsize):
         z_content = self.sample_z_content(batchsize)
@@ -85,8 +85,18 @@ class BaseMidVideoGenerator(nn.Module):
     def get_iteration_noise(self, batchsize):
         return torch.empty((batchsize, self.dim_z_motion), device=self.device).normal_()
 
-    def forward_dummy(self):
-        return self.sample_videos(2)
+    def __str__(self, name="ggen"):
+        return json.dumps(
+            {
+                name: {
+                    "out_ch": self.out_ch,
+                    "dim_zc": self.dim_z_content,
+                    "dim_zm": self.dim_z_motion,
+                    "vlen": self.video_length,
+                    "ngf": self.ngf,
+                }
+            }
+        )
 
 
 class DepthVideoGenerator(BaseMidVideoGenerator):
@@ -275,6 +285,19 @@ class ColorVideoGenerator(nn.Module):
         ys = ys.permute(0, 2, 1, 3, 4)  # (B, C, T, H, W)
 
         return ys
+
+    def __str__(self, name="cgen"):
+        return json.dumps(
+            {
+                name: {
+                    "in_ch": self.in_ch,
+                    "out_ch": self.out_ch,
+                    "dim_z": self.dim_z,
+                    "n_down_blocks": self.n_down_blocks,
+                    "n_up_blocks": self.n_up_blocks,
+                }
+            }
+        )
 
 
 def new_geometric_generator(_type: str) -> BaseMidVideoGenerator:

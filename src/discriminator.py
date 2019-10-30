@@ -1,3 +1,5 @@
+import json
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -31,6 +33,8 @@ class ImageDiscriminator(nn.Module):
 
         self.ch1, self.ch2 = ch1, ch2
         self.use_noise = use_noise
+        self.noise_sigma = noise_sigma
+        self.ndf = ndf
 
         self.conv_g = nn.Sequential(
             Noise(use_noise, sigma=noise_sigma),
@@ -55,7 +59,6 @@ class ImageDiscriminator(nn.Module):
             nn.LeakyReLU(0.2, inplace=True),
             Noise(use_noise, sigma=noise_sigma),
             nn.Conv2d(ndf * 4, 1, 4, 2, 1, bias=False),
-            nn.Sigmoid(),
         )
 
         self.device = util.current_device()
@@ -63,10 +66,23 @@ class ImageDiscriminator(nn.Module):
     def forward(self, xg, xc):
         hg = self.conv_g(xg)
         hc = self.conv_c(xc)
-        h = torch.cat([hg, hc], 1)
+        h = torch.cat([hc, hg], 1)
         h = self.main(h).squeeze()
 
         return h
+
+    def __str__(self, name="idis"):
+        return json.dumps(
+            {
+                name: {
+                    "ch_g": self.ch1,
+                    "ch_c": self.ch2,
+                    "ndf": self.ndf,
+                    "use_noise": self.use_noise,
+                    "noise_sigma": self.noise_sigma,
+                }
+            }
+        )
 
 
 class VideoDiscriminator(nn.Module):
@@ -75,6 +91,8 @@ class VideoDiscriminator(nn.Module):
 
         self.ch1, self.ch2 = ch1, ch2
         self.use_noise = use_noise
+        self.noise_sigma = noise_sigma
+        self.ndf = ndf
 
         self.conv_g = nn.Sequential(
             nn.Conv3d(
@@ -103,14 +121,26 @@ class VideoDiscriminator(nn.Module):
             nn.LeakyReLU(0.2, inplace=True),
             Noise(use_noise, sigma=noise_sigma),
             nn.Conv3d(ndf * 4, 1, 4, stride=(1, 2, 2), padding=(0, 1, 1), bias=False),
-            nn.Sigmoid(),
         )
         self.device = util.current_device()
 
     def forward(self, xg, xc):
         hg = self.conv_g(xg)
         hc = self.conv_c(xc)
-        h = torch.cat([hg, hc], 1)
+        h = torch.cat([hc, hg], 1)
         h = self.main(h).squeeze()
 
         return h
+
+    def __str__(self, name="vdis"):
+        return json.dumps(
+            {
+                name: {
+                    "ch_g": self.ch1,
+                    "ch_c": self.ch2,
+                    "ndf": self.ndf,
+                    "use_noise": self.use_noise,
+                    "noise_sigma": self.noise_sigma,
+                }
+            }
+        )

@@ -66,7 +66,7 @@ class Logger(object):
         self.define("iteration", MetricType.Number, 99)
         self.define("elapsed_time", MetricType.Time, -1)
 
-        self.indent = "  "
+        self.indent = " " * 4
 
     def new_logging_module(self, name: str, log_file: Path) -> logging.Logger:
         # specify format

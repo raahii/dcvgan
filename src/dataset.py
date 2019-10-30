@@ -56,6 +56,7 @@ class VideoDataset(Dataset):
         self.video_length = video_length
         self.geometric_info = geometric_info
         self.ext = extension
+        self.name = name
 
     def __len__(self):
         return len(self.video_list)

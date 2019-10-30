@@ -59,20 +59,14 @@ class Trainer(object):
         self.save_classobj()
 
     def compute_dis_loss(self, y_real, y_fake):
-        ones = torch.ones_like(y_real, device=self.device)
-        zeros = torch.zeros_like(y_fake, device=self.device)
-
-        loss = self.adv_loss(y_real, ones) / y_real.numel()
-        loss += self.adv_loss(y_fake, zeros) / y_fake.numel()
+        loss = torch.mean(nn.functional.relu(1.0 - y_real))
+        loss += torch.mean(nn.functional.relu(1.0 + y_fake))
 
         return loss
 
     def compute_gen_loss(self, y_fake_i, y_fake_v):
-        ones_i = torch.ones_like(y_fake_i, device=self.device)
-        ones_v = torch.ones_like(y_fake_v, device=self.device)
-
-        loss = self.adv_loss(y_fake_i, ones_i) / y_fake_i.numel()
-        loss += self.adv_loss(y_fake_v, ones_v) / y_fake_v.numel()
+        loss = torch.mean(nn.functional.softplus(-y_fake_i))
+        loss += torch.mean(nn.functional.softplus(-y_fake_v))
 
         return loss
 
@@ -109,8 +103,8 @@ class Trainer(object):
                 xg_fake = xg_fake.repeat(1, 3, 1, 1, 1)  # to have 3-channels
 
             # log histgram of fake samples
-            self.logger.tf_log_histgram(xg_fake[:, :, 0], "depthspace_fake", iteration)
-            self.logger.tf_log_histgram(xc_fake[:, :, 0], "colorspace_fake", iteration)
+            self.logger.tf_log_histgram(xg_fake[:, 0], "depthspace_fake", iteration)
+            self.logger.tf_log_histgram(xc_fake[:, 0], "colorspace_fake", iteration)
 
             # log fake samples
             xg_fake, xc_fake = deform(xg_fake), deform(xc_fake)
@@ -118,15 +112,15 @@ class Trainer(object):
             x_fake = x_fake.transpose(0, 2, 1, 3, 4)  # (N, T, C, H, W)
             self.logger.tf_log_video("fake_samples", x_fake, iteration)
 
-            # retrieve real samples
+            # take real samples
             batch = next(self.dataloader_log.__iter__())
             xg_real, xc_real = batch[self.geometric_info], batch["color"]
             if self.geometric_info == "depth":
                 xg_real = xg_real.repeat(1, 3, 1, 1, 1)  # to have 3-channels
 
             # log histgram of real samples
-            self.logger.tf_log_histgram(xg_real[:, :, 0], "depthspace_real", iteration)
-            self.logger.tf_log_histgram(xc_real[:, :, 0], "colorspace_real", iteration)
+            self.logger.tf_log_histgram(xg_real[:, 0], "depthspace_real", iteration)
+            self.logger.tf_log_histgram(xc_real[:, 0], "colorspace_real", iteration)
 
             # log fake samples
             xg_real, xc_real = deform(xg_real), deform(xc_real)
@@ -138,12 +132,6 @@ class Trainer(object):
         # retrieve models and move them if necessary
         ggen, cgen = self.models["ggen"], self.models["cgen"]
         idis, vdis = self.models["idis"], self.models["vdis"]
-
-        # move the models to proper device
-        n_gpus = torch.cuda.device_count()
-        if n_gpus > 1:
-            ggen, cgen = nn.DataParallel(ggen), nn.DataParallel(cgen)
-            idis, vdis = nn.DataParallel(idis), nn.DataParallel(vdis)
 
         ggen, cgen = ggen.to(self.device), cgen.to(self.device)
         idis, vdis = idis.to(self.device), vdis.to(self.device)
@@ -159,14 +147,11 @@ class Trainer(object):
         self.logger.define("loss_idis", MetricType.Loss)
         self.logger.define("loss_vdis", MetricType.Loss)
 
-        # save hyperparams
-        hparams = {}
-        for key in ["seed", "batchsize"]:
-            hparams[key] = self.configs[key]
-        self.logger.tf_hyperparams(hparams)
-
         # training loop
-        self.logger.warning(f"Start training, device: {self.device}, n_gpus: {n_gpus}")
+        self.logger.debug("(trainer)")
+        self.logger.debug(f"epochs: {self.configs['n_epochs']}", 1)
+        self.logger.debug(f"device: {self.device}", 1)
+        self.logger.debug("(start training)")
         self.logger.print_header()
         for i in range(self.configs["n_epochs"]):
             self.epoch += 1
@@ -174,6 +159,50 @@ class Trainer(object):
                 self.iteration += 1
                 self.logger.update("iteration", self.iteration)
                 self.logger.update("epoch", self.epoch)
+
+                if ggen.video_length == cgen.video_length:
+                    t_rand = np.random.randint(ggen.video_length)
+                    tg_rand, tc_rand = t_rand, t_rand
+                else:
+                    raise NotImplementedError
+
+                # --------------------
+                # phase discriminator
+                # --------------------
+                idis.train()
+                vdis.train()
+                idis.zero_grad()
+                vdis.zero_grad()
+
+                # real batch
+                xc_real = batch["color"]
+                xc_real = xc_real.to(self.device)
+
+                xg_real = batch[self.geometric_info]
+                xg_real = xg_real.to(self.device)
+
+                y_real_i = idis(xg_real[:, :, tg_rand], xc_real[:, :, tc_rand])
+                y_real_v = vdis(xg_real, xc_real)
+
+                # fake batch
+                xg_fake = ggen.sample_videos(self.configs["batchsize"])
+                xc_fake = cgen.forward_videos(xg_fake)
+
+                y_fake_i = idis(xg_fake[:, :, tg_rand], xc_fake[:, :, tc_rand])
+                y_fake_v = vdis(xg_fake, xc_fake)
+
+                # compute loss
+                loss_idis = self.compute_dis_loss(y_real_i, y_fake_i)
+                loss_vdis = self.compute_dis_loss(y_real_v, y_fake_v)
+
+                # update weights
+                loss_idis.backward(retain_graph=True)
+                loss_vdis.backward()
+                opt_idis.step()
+                opt_vdis.step()
+
+                self.logger.update("loss_idis", loss_idis.cpu().item())
+                self.logger.update("loss_vdis", loss_vdis.cpu().item())
 
                 # --------------------
                 # phase generator
@@ -187,8 +216,6 @@ class Trainer(object):
                 xg_fake = ggen.sample_videos(self.configs["batchsize"])
                 xc_fake = cgen.forward_videos(xg_fake)
 
-                tg_rand = np.random.randint(ggen.video_length)
-                tc_rand = np.random.randint(cgen.video_length)
                 y_fake_i = idis(xg_fake[:, :, tg_rand], xc_fake[:, :, tc_rand])
                 y_fake_v = vdis(xg_fake, xc_fake)
 
@@ -200,46 +227,10 @@ class Trainer(object):
                     loss_gen.backward()
                     opt_ggen.step()
                     opt_cgen.step()
+                else:
+                    loss_gen.detach_()
 
                 self.logger.update("loss_gen", loss_gen.cpu().item())
-
-                # train_generator = not train_generator
-
-                # --------------------
-                # phase discriminator
-                # --------------------
-                idis.train()
-                vdis.train()
-                idis.zero_grad()
-                vdis.zero_grad()
-
-                # real batch
-                xc_real = batch["color"].float()
-                xc_real = xc_real.to(self.device)
-
-                xg_real = batch[self.geometric_info].float()
-                xg_real = xg_real.to(self.device)
-
-                y_real_i = idis(xg_real[:, :, tg_rand], xc_real[:, :, tc_rand])
-                y_real_v = vdis(xg_real, xc_real)
-
-                xg_fake = xg_fake.detach()
-                xc_fake = xc_fake.detach()
-                y_fake_i = idis(xg_fake[:, :, tg_rand], xc_fake[:, :, tc_rand])
-                y_fake_v = vdis(xg_fake, xc_fake)
-
-                # compute loss
-                loss_idis = self.compute_dis_loss(y_real_i, y_fake_i)
-                loss_vdis = self.compute_dis_loss(y_real_v, y_fake_v)
-
-                # update weights
-                loss_idis.backward()
-                loss_vdis.backward()
-                opt_idis.step()
-                opt_vdis.step()
-
-                self.logger.update("loss_idis", loss_idis.cpu().item())
-                self.logger.update("loss_vdis", loss_vdis.cpu().item())
 
                 # --------------------
                 # others
@@ -258,10 +249,5 @@ class Trainer(object):
                 if self.iteration % self.configs["log_samples_interval"] == 0:
                     self.log_samples(ggen, cgen, self.iteration)
 
-                # evaluate generated samples
-                # if iteration % self.configs["evaluation_interval"] == 0:
-                #    pass
-
         self.save_params()
-        # self.generate_samples(ggen, cgen, self.iteration)
         self.log_samples(ggen, cgen, self.iteration)

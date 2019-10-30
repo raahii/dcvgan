@@ -17,7 +17,6 @@ from generator import ColorVideoGenerator, new_geometric_generator
 from logger import Logger
 from preprocess.isogd import preprocess_isogd_dataset
 from preprocess.mug import preprocess_mug_dataset
-from preprocess.surreal import preprocess_surreal_dataset
 from trainer import Trainer
 
 
@@ -48,11 +47,8 @@ def new_dataset(configs):
     )
 
 
-def create_optimizer(models: List[nn.Module], lr: float, decay: float):
-    params: List[torch.Tensor] = []
-    for m in models:
-        params += list(m.parameters())
-    return optim.Adam(params, lr=lr, betas=(0.5, 0.999), weight_decay=decay)
+def create_optimizer(m: nn.Module, lr: float, decay: float):
+    return optim.Adam(m.parameters(), lr=lr, betas=(0.5, 0.999), weight_decay=decay)
 
 
 def main():
@@ -73,6 +69,11 @@ def main():
     # fix seed
     fix_seed(configs["seed"])
 
+    # initialize logger
+    log_path = Path(configs["log_dir"]) / configs["experiment_name"]
+    tb_path = Path(configs["tensorboard_dir"]) / configs["experiment_name"]
+    logger = Logger(log_path, tb_path)
+
     # prepare dataset
     dataset = new_dataset(configs)
     dataloader = DataLoader(
@@ -84,11 +85,11 @@ def main():
         pin_memory=True,
         worker_init_fn=worker_init_fn,
     )
-
-    # initialize logger
-    log_path = Path(configs["log_dir"]) / configs["experiment_name"]
-    tb_path = Path(configs["tensorboard_dir"]) / configs["experiment_name"]
-    logger = Logger(log_path, tb_path)
+    logger.debug("(dataset)")
+    logger.debug(f"name: {dataset.name}", 1)
+    logger.debug(f"size: {len(dataset)}", 1)
+    logger.debug(f"batchsize: {dataloader.batch_size}", 1)
+    logger.debug(f"workers: {dataloader.num_workers}", 1)
 
     # prepare models
     ggen = new_geometric_generator(configs["geometric_info"])(
@@ -122,21 +123,18 @@ def main():
     )
     models = {"ggen": ggen, "cgen": cgen, "idis": idis, "vdis": vdis}
 
+    logger.debug("(models)")
+    for m in models.values():
+        logger.debug(str(m), 1)
+
     # init weights
     for m in models.values():
         m.apply(util.init_weights)
 
     # optimizers
-    opt_ggen = create_optimizer([ggen], **configs["ggen"]["optimizer"])
-    opt_cgen = create_optimizer([cgen], **configs["cgen"]["optimizer"])
-    opt_idis = create_optimizer([idis], **configs["idis"]["optimizer"])
-    opt_vdis = create_optimizer([vdis], **configs["vdis"]["optimizer"])
-    optimizers = {
-        "ggen": opt_ggen,
-        "cgen": opt_cgen,
-        "idis": opt_idis,
-        "vdis": opt_vdis,
-    }
+    optimizers = {}
+    for name, model in models.items():
+        optimizers[name] = create_optimizer(model, **configs[name]["optimizer"])
 
     # start training
     trainer = Trainer(dataloader, logger, models, optimizers, configs)

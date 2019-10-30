@@ -66,7 +66,7 @@ def videos_to_numpy(tensor):
 
 def make_video_grid(videos, rows, cols):
     """
-    Convert multiple videos to a single rows x cols grid video. 
+    Convert multiple videos to a single rows x cols grid video.
     It must be len(videos) == rows*cols.
 
     Parameters
@@ -127,9 +127,8 @@ class DebugLayer(nn.Module):
 
 def init_weights(layer):
     if type(layer) in [nn.Conv2d, nn.ConvTranspose2d]:
-        # print(layer)
-        # init.normal_(layer.weight.data, 0, 0.02)
-        init.orthogonal_(layer.weight.data)
+        init.normal_(layer.weight.data, 0, 0.02)
+        # init.orthogonal_(layer.weight.data)
     elif type(layer) in [nn.BatchNorm2d]:
         init.normal_(layer.weight.data, 1.0, 0.02)
         init.constant_(layer.bias.data, 0.0)
