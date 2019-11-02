@@ -173,7 +173,7 @@ class Logger(object):
 
         log_string: str = ""
         for s in log_strings:
-            log_string += "{:>13} ".format(s)
+            log_string += "{:>15} ".format(s)
 
         self.info(log_string)
 

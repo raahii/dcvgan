@@ -1,6 +1,7 @@
 import copy
 import random
 import shutil
+import tempfile
 import time
 from pathlib import Path
 from typing import Any, Dict
@@ -11,7 +12,10 @@ import torch.optim as optim
 from torch import nn
 from torch.utils.data import DataLoader
 
+import dataio
 import util
+from evaluation import compute_conv_features, evaluate
+from generator import BaseMidVideoGenerator, ColorVideoGenerator
 from logger import Logger, MetricType
 
 
@@ -49,7 +53,7 @@ class Trainer(object):
         for p in [self.gen_samples_path, self.model_snapshots_path]:
             p.mkdir(parents=True, exist_ok=True)
 
-        self.adv_loss = nn.BCELoss(reduction="sum")
+        self.adv_loss = nn.BCEWithLogitsLoss(reduction="sum")
 
         # copy config file to log directory
         shutil.copy(configs["config_path"], str(self.logger.path / "config.yml"))
@@ -59,14 +63,20 @@ class Trainer(object):
         self.save_classobj()
 
     def compute_dis_loss(self, y_real, y_fake):
-        loss = torch.mean(nn.functional.relu(1.0 - y_real))
-        loss += torch.mean(nn.functional.relu(1.0 + y_fake))
+        ones = torch.ones_like(y_real, device=self.device)
+        zeros = torch.zeros_like(y_fake, device=self.device)
+
+        loss = self.adv_loss(y_real, ones) / y_real.numel()
+        loss += self.adv_loss(y_fake, zeros) / y_fake.numel()
 
         return loss
 
     def compute_gen_loss(self, y_fake_i, y_fake_v):
-        loss = torch.mean(nn.functional.softplus(-y_fake_i))
-        loss += torch.mean(nn.functional.softplus(-y_fake_v))
+        ones_i = torch.ones_like(y_fake_i, device=self.device)
+        ones_v = torch.ones_like(y_fake_v, device=self.device)
+
+        loss = self.adv_loss(y_fake_i, ones_i) / y_fake_i.numel()
+        loss += self.adv_loss(y_fake_v, ones_v) / y_fake_v.numel()
 
         return loss
 
@@ -128,6 +138,31 @@ class Trainer(object):
             x_real = x_real.transpose(0, 2, 1, 3, 4)  # (N, T, C, H, W)
             self.logger.tf_log_video("real_samples", x_real, iteration)
 
+    def evaluate_by_is(self, ggen: BaseMidVideoGenerator, cgen: ColorVideoGenerator):
+        batchsize, num_samples = 50, 10000
+
+        # generate fake samples
+        _, xc = util.generate_samples(ggen, cgen, num_samples, batchsize)
+
+        # in a temporary directory
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_dir = Path(tmp_dir)
+
+            samples_dir = tmp_dir / "samples"
+            samples_dir.mkdir()
+
+            # save all fake sampels in .mp4
+            for i, x in enumerate(xc):
+                dataio.write_video(x, samples_dir / f"{i}.mp4")
+
+            # convert to convolutional features with inpception model
+            f, p = compute_conv_features.convert(batchsize, samples_dir)
+            compute_conv_features.save(f, p, tmp_dir)
+
+            # calculate the score
+            score = evaluate.compute_metric("is", tmp_dir)
+            self.logger.update("inception_score", score)
+
     def train(self):
         # retrieve models and move them if necessary
         ggen, cgen = self.models["ggen"], self.models["cgen"]
@@ -146,6 +181,7 @@ class Trainer(object):
         self.logger.define("loss_gen", MetricType.Loss)
         self.logger.define("loss_idis", MetricType.Loss)
         self.logger.define("loss_vdis", MetricType.Loss)
+        self.logger.define("inception_score", MetricType.Number)
 
         # training loop
         self.logger.debug("(trainer)")
@@ -235,12 +271,6 @@ class Trainer(object):
                 # --------------------
                 # others
                 # --------------------
-                # log
-                if self.iteration % self.configs["log_interval"] == 0:
-                    self.logger.log()
-                    self.logger.tf_log_scalars("iteration")
-                    self.logger.clear()
-
                 # snapshot models
                 if self.iteration % self.configs["snapshot_interval"] == 0:
                     self.save_params()
@@ -248,6 +278,16 @@ class Trainer(object):
                 # log samples
                 if self.iteration % self.configs["log_samples_interval"] == 0:
                     self.log_samples(ggen, cgen, self.iteration)
+
+                # evaluation
+                if self.iteration % self.configs["evaluation_interval"] == 0:
+                    self.log_samples(ggen, cgen, self.iteration)
+
+                # log
+                if self.iteration % self.configs["log_interval"] == 0:
+                    self.logger.log()
+                    self.logger.tf_log_scalars("iteration")
+                    self.logger.clear()
 
         self.save_params()
         self.log_samples(ggen, cgen, self.iteration)

@@ -106,6 +106,7 @@ class DepthVideoGenerator(BaseMidVideoGenerator):
     """
 
     channel = 1
+    geometric_info = "depth"
 
     def __init__(self, dim_z_content, dim_z_motion, ngf=64, video_length=16):
         super(DepthVideoGenerator, self).__init__(
@@ -120,6 +121,7 @@ class OpticalFlowVideoGenerator(BaseMidVideoGenerator):
     """
 
     channel = 2
+    geometric_info = "optical-flow"
 
     def __init__(self, dim_z_content, dim_z_motion, ngf=64, video_length=16):
         super(OpticalFlowVideoGenerator, self).__init__(
