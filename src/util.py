@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Tuple
 
 import cv2
 import numpy as np
@@ -6,6 +6,8 @@ import torch
 import torch.nn as nn
 import torch.nn.init as init
 from PIL import Image
+
+from generator import BaseMidVideoGenerator, ColorVideoGenerator
 
 
 def current_device() -> torch.device:
@@ -132,3 +134,35 @@ def init_weights(layer):
     elif type(layer) in [nn.BatchNorm2d]:
         init.normal_(layer.weight.data, 1.0, 0.02)
         init.constant_(layer.bias.data, 0.0)
+
+
+def generate_samples(
+    ggen: BaseMidVideoGenerator,
+    cgen: ColorVideoGenerator,
+    num: int,
+    batchsize: int = 20,
+) -> Tuple[np.ndarray, np.ndarray]:
+
+    xc_batches, xg_batches = [], []
+    for s in range(0, num, batchsize):
+        with torch.no_grad():
+            xg = ggen.sample_videos(batchsize)
+            xc = cgen.forward_videos(xg)
+            if ggen.geometric_info == "depth":
+                xg = xg.repeat(1, 3, 1, 1, 1)
+            else:
+                raise NotImplementedError
+        xg = videos_to_numpy(xg)
+
+        xg_batches.append(xg)
+        xc_batches.append(xc)
+
+    xg = np.concatenate(xg_batches)
+    xg = xg[:num]
+    xg = xg.transpose(0, 2, 3, 4, 1)
+
+    xc = np.concatenate(xc_batches)
+    xc = xc[:num]
+    xc = xc.transpose(0, 2, 3, 4, 1)
+
+    return xg, xc
