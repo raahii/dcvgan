@@ -196,8 +196,11 @@ class Trainer(object):
                 self.logger.update("iteration", self.iteration)
                 self.logger.update("epoch", self.epoch)
 
-                if ggen.video_length == cgen.video_length:
+                if ggen.geometric_info == "depth":
                     t_rand = np.random.randint(ggen.video_length)
+                    tg_rand, tc_rand = t_rand, t_rand
+                elif ggen.geometric_info == "optical-flow":
+                    t_rand = np.random.randint(ggen.video_length - 1)
                     tg_rand, tc_rand = t_rand, t_rand
                 else:
                     raise NotImplementedError

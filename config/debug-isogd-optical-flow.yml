@@ -1,5 +1,5 @@
 # experiment configs
-experiment_name: "debug"
+experiment_name: "debug-optical-flow"
 
 # basic configs
 batchsize: 2
@@ -13,7 +13,7 @@ tensorboard_dir: "result/debug/runs"
 log_dir: "result/debug"
 
 # geometric information type
-geometric_info: "depth"
+geometric_info: "optical-flow"
 
 # interval
 log_interval:         5

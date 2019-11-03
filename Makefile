@@ -31,3 +31,12 @@ deploy:
 	      --delete \
 	      --exclude-from=.rsyncignore \
 	      $(shell ghq root)/github.com/raahii/dcvgan/ labo:~/study/dcvgan/
+
+deploy_ext:
+	rsync -auvz \
+	      --delete \
+	      --exclude-from=.rsyncignore \
+	      $(shell ghq root)/github.com/raahii/dcvgan/ labo_ext:~/study/dcvgan/
+
+fetch_ext:
+	rsync -auvz labo_ext:~/study/dcvgan/result/isogd/isogd-depth-low-resolution/ $(shell ghq root)/github.com/raahii/dcvgan/result/remote/isogd/isogd-depth-low-resolution/
