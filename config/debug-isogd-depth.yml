@@ -21,12 +21,20 @@ log_samples_interval: 5
 snapshot_interval:    5
 evaluation_interval:  5
 
+# training settings
+dis_update_ratio: 1 # number of D updates per every G update
+
 # dataset configs
 dataset:
   name: "isogd"
   path: "data/raw/isogd"
   n_workers: 2
   number_limit: 100
+
+# model evaluation during training using inception score
+evaluation:
+  batchsize: 50
+  num_samples: 200
 
 # model configs
 ggen:

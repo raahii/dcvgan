@@ -38,6 +38,9 @@ class Trainer(object):
 
         self.num_log, self.rows_log, self.cols_log = 25, 5, 5
 
+        self.eval_batchsize = configs["evaluation"]["batchsize"]
+        self.eval_num_smaples = configs["evaluation"]["num_samples"]
+
         # dataloader for logging real samples on tensorboard
         self.dataloader_log = DataLoader(
             self.dataloader.dataset,
@@ -139,10 +142,16 @@ class Trainer(object):
             self.logger.tf_log_video("real_samples", x_real, iteration)
 
     def evaluate_by_is(self, ggen: BaseMidVideoGenerator, cgen: ColorVideoGenerator):
-        batchsize, num_samples = 50, 10000
-
         # generate fake samples
-        _, xc = util.generate_samples(ggen, cgen, num_samples, batchsize)
+        _, xc = util.generate_samples(
+            ggen,
+            cgen,
+            self.eval_num_smaples,
+            self.eval_batchsize,
+            desc=f"sampling {self.eval_num_smaples} videos for evalaution",
+            verbose=True,
+        )
+        ggen, cgen = ggen.to("cpu"), cgen.to("cpu")
 
         # in a temporary directory
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -156,12 +165,14 @@ class Trainer(object):
                 dataio.write_video(x, samples_dir / f"{i}.mp4")
 
             # convert to convolutional features with inpception model
-            f, p = compute_conv_features.convert(batchsize, samples_dir)
+            f, p = compute_conv_features.convert(self.eval_batchsize, samples_dir)
             compute_conv_features.save(f, p, tmp_dir)
 
             # calculate the score
-            score = evaluate.compute_metric("is", tmp_dir)
-            self.logger.update("inception_score", score)
+            score = evaluate.compute_metric("is", [tmp_dir])
+            self.logger.update("inception_score", score["score"])
+
+        ggen, cgen = ggen.to(self.device), cgen.to(self.device)
 
     def train(self):
         # retrieve models and move them if necessary
@@ -176,12 +187,12 @@ class Trainer(object):
         opt_idis, opt_vdis = self.optimizers["idis"], self.optimizers["vdis"]
 
         # define metrics
-        self.logger.define("iteration", MetricType.Number)
-        self.logger.define("epoch", MetricType.Number)
+        self.logger.define("iteration", MetricType.Integer)
+        self.logger.define("epoch", MetricType.Integer)
         self.logger.define("loss_gen", MetricType.Loss)
         self.logger.define("loss_idis", MetricType.Loss)
         self.logger.define("loss_vdis", MetricType.Loss)
-        self.logger.define("inception_score", MetricType.Number)
+        self.logger.define("inception_score", MetricType.Float)
 
         # training loop
         self.logger.debug("(trainer)")
@@ -281,7 +292,7 @@ class Trainer(object):
 
                 # evaluation
                 if self.iteration % self.configs["evaluation_interval"] == 0:
-                    self.log_samples(ggen, cgen, self.iteration)
+                    self.evaluate_by_is(ggen, cgen)
 
                 # log
                 if self.iteration % self.configs["log_interval"] == 0:
