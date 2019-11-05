@@ -30,13 +30,14 @@ class Metric(object):
 
     mtype_list: List[int] = list(map(int, MetricType))
 
-    def __init__(self, mtype: MetricType, priority: int):
+    def __init__(self, mtype: MetricType, priority: int, tensorboard: bool):
         if mtype not in self.mtype_list:
             raise Exception("mtype is invalid, %s".format(self.mtype_list))
 
         self.mtype: MetricType = mtype
         self.params: Dict[str, Any] = {}
         self.priority: int = priority
+        self.log_to_tensorboard: bool = tensorboard
         self.value: Any = 0
 
 
@@ -63,9 +64,9 @@ class Logger(object):
         self.tf_writer: SummaryWriter = SummaryWriter(str(tb_path))
 
         # automatically add elapsed_time metric
-        self.define("epoch", MetricType.Integer, 100)
-        self.define("iteration", MetricType.Integer, 99)
-        self.define("elapsed_time", MetricType.Time, -1)
+        self.define("epoch", MetricType.Integer, 100, False)
+        self.define("iteration", MetricType.Integer, 99, False)
+        self.define("elapsed_time", MetricType.Time, -1, False)
 
         self.indent = " " * 4
 
@@ -96,15 +97,13 @@ class Logger(object):
 
         return logger
 
-    def define(self, name: str, mtype: MetricType, priority=0):
+    def define(self, name: str, mtype: MetricType, priority=0, tensorboard=True):
         """
         register a new metric
         """
-        metric: Metric = Metric(mtype, priority)
-        if mtype == MetricType.Integer:
-            metric.value = 0
-        elif mtype == MetricType.Float:
-            metric.value = 0.0
+        metric: Metric = Metric(mtype, priority, tensorboard)
+        if mtype in [MetricType.Integer, MetricType.Float]:
+            metric.value = None
         elif mtype == MetricType.Loss:
             metric.value = []
         elif mtype == MetricType.Time:
@@ -127,12 +126,10 @@ class Logger(object):
         init registerd merics values
         """
         for _, metric in self.metrics.items():
-            if metric.mtype == MetricType.Loss:
+            if metric.mtype in [MetricType.Integer, MetricType.Float]:
+                metric.value = None
+            elif metric.mtype == MetricType.Loss:
                 metric.value = []
-            elif metric.mtype == MetricType.Integer:
-                metric.value = 0
-            elif metric.mtype == MetricType.Float:
-                metric.value = 0.0
 
     def update(self, name: str, value: Any):
         """
@@ -155,18 +152,32 @@ class Logger(object):
             log_string += "{:>15} ".format(name)
         self.info(log_string)
 
-    def log(self):
+    def log(self, x_axis_metric="iteration"):
+        self.update("elapsed_time", time.time())
+
+        # tensorboard
+        self.tf_log_scalars(x_axis_metric)
+
+        # console
+        self._log()
+
+    def _log(self):
         """
         write logs to stdio and pre-defined file
         """
-        self.update("elapsed_time", time.time())
-
         log_strings: List[str] = []
         for k, m in self.metrics.items():
+            # console (or file ) logging
             if m.mtype == MetricType.Integer:
-                s = "{}".format(m.value)
+                if m.value is None:
+                    s = "-"
+                else:
+                    s = "{}".format(m.value)
             if m.mtype == MetricType.Float:
-                s = "{:0.3f}".format(m.value)
+                if m.value is None:
+                    s = "-"
+                else:
+                    s = "{:0.3f}".format(m.value)
             elif m.mtype == MetricType.Loss:
                 if len(m.value) == 0:
                     s = " - "
@@ -198,13 +209,19 @@ class Logger(object):
 
         step = x_metric.value
         for name, metric in self.metrics.items():
-            if metric.mtype != MetricType.Loss:
+            if not metric.log_to_tensorboard:
                 continue
 
-            if len(metric.value) == 0:
-                raise Exception(f"Metric {name} has no values.")
-            mean: float = sum(metric.value) / len(metric.value)
-            self.tf_writer.add_scalar(name, mean, step)
+            if metric.mtype in [MetricType.Integer, MetricType.Float]:
+                if metric.value is None:
+                    continue
+                value = metric.value
+            elif metric.mtype == MetricType.Loss:
+                if len(metric.value) == 0:
+                    continue
+                value = sum(metric.value) / len(metric.value)
+
+            self.tf_writer.add_scalar(name, value, step)
 
     def tf_log_histgram(self, var, tag, step):
         """

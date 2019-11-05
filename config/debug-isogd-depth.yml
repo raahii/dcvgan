@@ -1,5 +1,5 @@
 # experiment configs
-experiment_name: "debug-isogd"
+experiment_name: "isogd-debug"
 
 # basic configs
 batchsize: 2
@@ -9,8 +9,8 @@ seed: 0
 video_length: 16
 image_size: 64
 
-tensorboard_dir: "result/mug/runs"
-log_dir: "result/isogd-debug"
+tensorboard_dir: "result/debug/runs"
+log_dir: "result/debug"
 
 # geometric information type
 geometric_info: "depth"

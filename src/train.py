@@ -73,6 +73,15 @@ def main():
     log_path = Path(configs["log_dir"]) / configs["experiment_name"]
     tb_path = Path(configs["tensorboard_dir"]) / configs["experiment_name"]
     logger = Logger(log_path, tb_path)
+    logger.debug("(experiment)")
+    logger.debug(f"name: {configs['experiment_name']}", 1)
+    logger.debug(f"directory {configs['log_dir']}", 1)
+    logger.debug(f"tensorboard: {configs['tensorboard_dir']}", 1)
+    logger.debug(f"geometric_info: {configs['geometric_info']}", 1)
+    logger.debug("interval:", 1)
+    logger.debug(f"log_interval: {configs['log_interval']}", 2)
+    logger.debug(f"snapshot_interval: {configs['snapshot_interval']}", 2)
+    logger.debug(f"evaluation_interval: {configs['evaluation_interval']}", 2)
 
     # prepare dataset
     dataset = new_dataset(configs)
