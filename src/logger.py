@@ -17,9 +17,10 @@ class MetricType(enum.IntEnum):
     Enum represents metric type
     """
 
-    Number = 1
-    Loss = 2
-    Time = 3
+    Integer = 1
+    Float = 2
+    Loss = 3
+    Time = 4
 
 
 class Metric(object):
@@ -62,8 +63,8 @@ class Logger(object):
         self.tf_writer: SummaryWriter = SummaryWriter(str(tb_path))
 
         # automatically add elapsed_time metric
-        self.define("epoch", MetricType.Number, 100)
-        self.define("iteration", MetricType.Number, 99)
+        self.define("epoch", MetricType.Integer, 100)
+        self.define("iteration", MetricType.Integer, 99)
         self.define("elapsed_time", MetricType.Time, -1)
 
         self.indent = " " * 4
@@ -100,8 +101,10 @@ class Logger(object):
         register a new metric
         """
         metric: Metric = Metric(mtype, priority)
-        if mtype == MetricType.Number:
+        if mtype == MetricType.Integer:
             metric.value = 0
+        elif mtype == MetricType.Float:
+            metric.value = 0.0
         elif mtype == MetricType.Loss:
             metric.value = []
         elif mtype == MetricType.Time:
@@ -126,15 +129,17 @@ class Logger(object):
         for _, metric in self.metrics.items():
             if metric.mtype == MetricType.Loss:
                 metric.value = []
-            elif metric.mtype == MetricType.Number:
+            elif metric.mtype == MetricType.Integer:
                 metric.value = 0
+            elif metric.mtype == MetricType.Float:
+                metric.value = 0.0
 
     def update(self, name: str, value: Any):
         """
         add a new metric value
         """
         m = self.metrics[name]
-        if m.mtype == MetricType.Number:
+        if m.mtype in [MetricType.Integer, MetricType.Float]:
             m.value = value
         elif m.mtype == MetricType.Loss:
             m.value.append(value)
@@ -147,7 +152,7 @@ class Logger(object):
         """
         log_string = ""
         for name in self.metrics.keys():
-            log_string += "{:>13} ".format(name)
+            log_string += "{:>15} ".format(name)
         self.info(log_string)
 
     def log(self):
@@ -158,8 +163,10 @@ class Logger(object):
 
         log_strings: List[str] = []
         for k, m in self.metrics.items():
-            if m.mtype == MetricType.Number:
+            if m.mtype == MetricType.Integer:
                 s = "{}".format(m.value)
+            if m.mtype == MetricType.Float:
+                s = "{:0.3f}".format(m.value)
             elif m.mtype == MetricType.Loss:
                 if len(m.value) == 0:
                     s = " - "
@@ -186,7 +193,7 @@ class Logger(object):
             raise Exception(f"No such metric: {x_axis_metric}")
 
         x_metric = self.metrics[x_axis_metric]
-        if x_metric.mtype != MetricType.Number:
+        if x_metric.mtype not in [MetricType.Integer, MetricType.Float]:
             raise Exception(f"Invalid metric type: {repr(x_metric.mtype)}")
 
         step = x_metric.value
