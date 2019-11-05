@@ -3,7 +3,7 @@ import unittest
 import numpy as np
 import torch
 
-from generator import ColorVideoGenerator, DepthVideoGenerator
+from generator import ColorVideoGenerator, GeometricVideoGenerator
 from util import calc_optical_flow, current_device, generate_samples
 
 
@@ -25,8 +25,14 @@ class TestUtilities(unittest.TestCase):
         GEOMTRIC_INFO_CH = 1
 
         # init ggen
-        inputs = {"dim_z_content": 30, "dim_z_motion": 10, "video_length": VIDEO_LENGTH}
-        ggen = DepthVideoGenerator(**inputs)
+        inputs = {
+            "dim_z_content": 30,
+            "dim_z_motion": 10,
+            "channel": 1,
+            "geometric_info": "depth",
+            "video_length": VIDEO_LENGTH,
+        }
+        ggen = GeometricVideoGenerator(**inputs)
 
         # init cgen
         inputs = {"in_ch": GEOMTRIC_INFO_CH, "dim_z": 10}

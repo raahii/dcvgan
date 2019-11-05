@@ -2,7 +2,7 @@ import unittest
 
 import torch
 
-from generator import ColorVideoGenerator, DepthVideoGenerator
+from generator import ColorVideoGenerator, GeometricVideoGenerator
 
 IMAGE_SIZE = 64
 VIDEO_LENGTH = 16
@@ -14,8 +14,14 @@ COLOR_CH = 3
 
 class TestModelForward(unittest.TestCase):
     def test_depth_video_generator(self):
-        inputs = {"dim_z_content": 30, "dim_z_motion": 10, "video_length": VIDEO_LENGTH}
-        ggen = DepthVideoGenerator(**inputs)
+        inputs = {
+            "dim_z_content": 30,
+            "dim_z_motion": 10,
+            "channel": GEOMTRIC_INFO_CH,
+            "geometric_info": "depth",
+            "video_length": VIDEO_LENGTH,
+        }
+        ggen = GeometricVideoGenerator(**inputs)
         videos = ggen.sample_videos(BATCHSIZE)
 
         expected = (BATCHSIZE, GEOMTRIC_INFO_CH, VIDEO_LENGTH, IMAGE_SIZE, IMAGE_SIZE)

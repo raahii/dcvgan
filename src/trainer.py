@@ -15,7 +15,7 @@ from torch.utils.data import DataLoader
 import dataio
 import util
 from evaluation import compute_conv_features, evaluate
-from generator import BaseMidVideoGenerator, ColorVideoGenerator
+from generator import ColorVideoGenerator, GeometricVideoGenerator
 from logger import Logger, MetricType
 
 
@@ -34,7 +34,7 @@ class Trainer(object):
         self.optimizers = optimizers
         self.configs = configs
         self.device = util.current_device()
-        self.geometric_info = configs["geometric_info"]
+        self.geometric_info = configs["geometric_info"]["name"]
 
         self.num_log, self.rows_log, self.cols_log = 25, 5, 5
 
@@ -141,7 +141,7 @@ class Trainer(object):
             x_real = x_real.transpose(0, 2, 1, 3, 4)  # (N, T, C, H, W)
             self.logger.tf_log_video("real_samples", x_real, iteration)
 
-    def evaluate_by_is(self, ggen: BaseMidVideoGenerator, cgen: ColorVideoGenerator):
+    def evaluate_by_is(self, ggen: GeometricVideoGenerator, cgen: ColorVideoGenerator):
         # generate fake samples
         _, xc = util.generate_samples(
             ggen,
@@ -207,14 +207,11 @@ class Trainer(object):
                 self.logger.update("iteration", self.iteration)
                 self.logger.update("epoch", self.epoch)
 
-                if ggen.geometric_info == "depth":
-                    t_rand = np.random.randint(ggen.video_length)
-                    tg_rand, tc_rand = t_rand, t_rand
-                elif ggen.geometric_info == "optical-flow":
-                    t_rand = np.random.randint(ggen.video_length - 1)
-                    tg_rand, tc_rand = t_rand, t_rand
-                else:
-                    raise NotImplementedError
+                # random video frame index for image discriminator
+                # the value is commonly used for both generator phase
+                # and discriminator phase in a iteration
+                t_rand = np.random.randint(ggen.video_length)
+                tg_rand, tc_rand = t_rand, t_rand
 
                 # --------------------
                 # phase discriminator
@@ -300,7 +297,6 @@ class Trainer(object):
                 # log
                 if self.iteration % self.configs["log_interval"] == 0:
                     self.logger.log()
-                    self.logger.tf_log_scalars("iteration")
                     self.logger.clear()
 
         self.save_params()

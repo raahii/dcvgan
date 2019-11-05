@@ -60,8 +60,8 @@ class TestLogger(unittest.TestCase):
         self.assertEqual([1, 2], logger.metrics["hoge"].value)
 
         logger.clear()
-        self.assertEqual(0, logger.metrics["foo"].value)
-        self.assertEqual(0.0, logger.metrics["bar"].value)
+        self.assertEqual(None, logger.metrics["foo"].value)
+        self.assertEqual(None, logger.metrics["bar"].value)
         self.assertEqual([], logger.metrics["hoge"].value)
 
 

@@ -7,13 +7,22 @@ import torch.nn as nn
 import util
 
 
-class BaseMidVideoGenerator(nn.Module):
-    def __init__(self, out_ch, dim_z_content, dim_z_motion, ngf=64, video_length=16):
-        super(BaseMidVideoGenerator, self).__init__()
+class GeometricVideoGenerator(nn.Module):
+    def __init__(
+        self,
+        dim_z_content,
+        dim_z_motion,
+        channel,
+        geometric_info,
+        ngf=64,
+        video_length=16,
+    ):
+        super(GeometricVideoGenerator, self).__init__()
 
-        self.out_ch = out_ch
         self.dim_z_content = dim_z_content
         self.dim_z_motion = dim_z_motion
+        self.channel = channel
+        self.geometric_info = geometric_info
         self.video_length = video_length
         self.ngf = ngf
 
@@ -35,7 +44,7 @@ class BaseMidVideoGenerator(nn.Module):
             nn.ConvTranspose2d(ngf * 2, ngf, 4, 2, 1, bias=False),
             nn.BatchNorm2d(ngf),
             nn.ReLU(inplace=True),
-            nn.ConvTranspose2d(ngf, self.out_ch, 4, 2, 1, bias=False),
+            nn.ConvTranspose2d(ngf, self.channel, 4, 2, 1, bias=False),
             nn.Tanh(),
         )
 
@@ -73,7 +82,7 @@ class BaseMidVideoGenerator(nn.Module):
         z = self.sample_z_video(batchsize)
 
         h = self.main(z.view(batchsize * self.video_length, self.dim_z, 1, 1))
-        h = h.view(batchsize, self.video_length, self.out_ch, 64, 64)
+        h = h.view(batchsize, self.video_length, self.channel, 64, 64)
 
         h = h.permute(0, 2, 1, 3, 4)
 
@@ -89,43 +98,14 @@ class BaseMidVideoGenerator(nn.Module):
         return json.dumps(
             {
                 name: {
-                    "out_ch": self.out_ch,
                     "dim_zc": self.dim_z_content,
                     "dim_zm": self.dim_z_motion,
+                    "channel": self.channel,
+                    "geometric_info": self.geometric_info,
                     "vlen": self.video_length,
                     "ngf": self.ngf,
                 }
             }
-        )
-
-
-class DepthVideoGenerator(BaseMidVideoGenerator):
-    """
-    Generator for depth videos
-    output channel: 1
-    """
-
-    channel = 1
-    geometric_info = "depth"
-
-    def __init__(self, dim_z_content, dim_z_motion, ngf=64, video_length=16):
-        super(DepthVideoGenerator, self).__init__(
-            self.channel, dim_z_content, dim_z_motion, ngf, video_length
-        )
-
-
-class OpticalFlowVideoGenerator(BaseMidVideoGenerator):
-    """
-    Generator for optical flow video
-    output channel: 2
-    """
-
-    channel = 2
-    geometric_info = "optical-flow"
-
-    def __init__(self, dim_z_content, dim_z_motion, ngf=64, video_length=16):
-        super(OpticalFlowVideoGenerator, self).__init__(
-            self.channel, dim_z_content, dim_z_motion, ngf, video_length - 1
         )
 
 
@@ -236,7 +216,6 @@ class ColorVideoGenerator(nn.Module):
                 UpBlock(ngf * 2, ngf * 1),
             ]
         )
-
         self.outconv = Outconv(ngf * 2, self.out_ch)
 
         self.n_down_blocks = len(self.down_blocks)
@@ -300,19 +279,3 @@ class ColorVideoGenerator(nn.Module):
                 }
             }
         )
-
-
-def new_geometric_generator(_type: str) -> BaseMidVideoGenerator:
-    """
-    return appropreate video generator for the geometric information type
-    """
-    if _type == "depth":
-        from generator import DepthVideoGenerator
-
-        return DepthVideoGenerator
-    elif _type == "optical-flow":
-        from generator import OpticalFlowVideoGenerator
-
-        return OpticalFlowVideoGenerator
-    else:
-        raise NotImplementedError

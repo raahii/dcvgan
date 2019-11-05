@@ -8,7 +8,7 @@ import torch.nn.init as init
 from PIL import Image
 from tqdm import tqdm
 
-from generator import BaseMidVideoGenerator, ColorVideoGenerator
+from generator import ColorVideoGenerator, GeometricVideoGenerator
 
 
 def current_device() -> torch.device:
@@ -138,7 +138,7 @@ def init_weights(layer):
 
 
 def generate_samples(
-    ggen: BaseMidVideoGenerator,
+    ggen: GeometricVideoGenerator,
     cgen: ColorVideoGenerator,
     num: int,
     batchsize: int = 20,

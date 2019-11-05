@@ -11,9 +11,9 @@ import yaml
 from torch.utils.data import DataLoader
 
 import util
-from dataset import VideoDataset
+from dataset import VideoDataset, new_dataset
 from discriminator import ImageDiscriminator, VideoDiscriminator
-from generator import ColorVideoGenerator, new_geometric_generator
+from generator import ColorVideoGenerator, GeometricVideoGenerator
 from logger import Logger
 from preprocess.isogd import preprocess_isogd_dataset
 from preprocess.mug import preprocess_mug_dataset
@@ -31,20 +31,6 @@ def fix_seed(value):
     torch.cuda.manual_seed_all(value)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = True
-
-
-def new_dataset(configs):
-    if configs["dataset"]["name"] not in ["mug", "isogd", "surreal"]:
-        raise NotImplementedError
-
-    return VideoDataset(
-        configs["dataset"]["name"],
-        Path(configs["dataset"]["path"]),
-        eval(f'preprocess_{configs["dataset"]["name"]}_dataset'),
-        configs["video_length"],
-        configs["image_size"],
-        configs["dataset"]["number_limit"],
-    )
 
 
 def create_optimizer(m: nn.Module, lr: float, decay: float):
@@ -92,9 +78,11 @@ def main():
     logger.debug(f"workers: {dataloader.num_workers}", 1)
 
     # prepare models
-    ggen = new_geometric_generator(configs["geometric_info"])(
+    ggen = GeometricVideoGenerator(
         configs["ggen"]["dim_z_content"],
         configs["ggen"]["dim_z_motion"],
+        configs["geometric_info"]["channel"],
+        configs["geometric_info"]["name"],
         configs["ggen"]["ngf"],
         configs["video_length"],
     )
