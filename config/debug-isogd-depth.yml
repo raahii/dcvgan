@@ -1,5 +1,5 @@
 # experiment configs
-experiment_name: "debug"
+experiment_name: "isogd-debug"
 
 # basic configs
 batchsize: 2

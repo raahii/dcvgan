@@ -170,8 +170,8 @@ class Trainer(object):
 
             # calculate the score
             score = evaluate.compute_metric("is", [tmp_dir])
-            self.logger.update("inception_score", score["score"])
 
+        self.logger.update("inception_score", score["score"])
         ggen, cgen = ggen.to(self.device), cgen.to(self.device)
 
     def train(self):
@@ -187,8 +187,6 @@ class Trainer(object):
         opt_idis, opt_vdis = self.optimizers["idis"], self.optimizers["vdis"]
 
         # define metrics
-        self.logger.define("iteration", MetricType.Integer)
-        self.logger.define("epoch", MetricType.Integer)
         self.logger.define("loss_gen", MetricType.Loss)
         self.logger.define("loss_idis", MetricType.Loss)
         self.logger.define("loss_vdis", MetricType.Loss)
