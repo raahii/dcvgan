@@ -22,8 +22,8 @@ class VideoDataset(Dataset):
         video_length=16,
         image_size=64,
         number_limit=-1,
-        mode="train",
         geometric_info="depth",
+        mode="train",
         extension="jpg",
     ):
         # TODO: Now only supporting mode 'train'.
@@ -54,6 +54,7 @@ class VideoDataset(Dataset):
         self.root_path = root_path
         self.video_list = video_list
         self.video_length = video_length
+        self.image_size = image_size
         self.geometric_info = geometric_info
         self.ext = extension
         self.name = name
@@ -65,8 +66,8 @@ class VideoDataset(Dataset):
         path, n_frames = self.video_list[i]
 
         # if video length is longer than pre-defined max length, select subsequence randomly.
-        if n_frames < self.video_length:
-            raise Exception("Invalid Video Found! Video length is insufficient!")
+        if n_frames < self.video_length + 1:
+            raise Exception(f"video length is insufficient: n:{n_frames}, path:{path}")
         elif n_frames == self.video_length:
             frames_to_read = range(n_frames)
         else:
@@ -90,27 +91,30 @@ class VideoDataset(Dataset):
             geo_video = np.stack(geo_video)
             geo_video = geo_video.transpose(3, 0, 1, 2)  # change to channel first
             geo_video = geo_video.astype(np.float32) / 127.5 - 1.0  # change value range
+        elif self.geometric_info == "optical-flow":
+            # dummy tensor
+            geo_video = np.load(
+                str(path / (self.geometric_info + ".npy")), mmap_mode="r"
+            )
+            geo_video = geo_video[frames_to_read]
+            geo_video = geo_video.transpose(3, 0, 1, 2)  # change to channel first
+            geo_video = geo_video / float(self.image_size)
         else:
             raise NotImplementedError
 
         return {"color": color_video, self.geometric_info: geo_video}
 
 
-if __name__ == "__main__":
-    # isogd
-    dataset = VideoDataset("isogd", Path("data/isogd/"), preprocess_isogd_dataset)
-    print("isogd")
-    print("dataset length:", len(dataset))
-    print("The first video sample:", dataset[0].shape)
+def new_dataset(configs):
+    if configs["dataset"]["name"] not in ["mug", "isogd", "surreal"]:
+        raise NotImplementedError
 
-    # mug
-    dataset = VideoDataset("mug", Path("data/mug/"), preprocess_mug_dataset)
-    print("\nmug")
-    print("dataset length:", len(dataset))
-    print("The first video sample:", dataset[0].shape)
-
-    # # surreal
-    # dataset = VideoDataset("surreal", Path("data/surreal/"), preprocess_surreal_dataset)
-    # print("\nsurreal")
-    # print("dataset length:", len(dataset))
-    # print("The first video sample:", dataset[0].shape)
+    return VideoDataset(
+        configs["dataset"]["name"],
+        Path(configs["dataset"]["path"]),
+        eval(f'preprocess_{configs["dataset"]["name"]}_dataset'),
+        configs["video_length"],
+        configs["image_size"],
+        configs["dataset"]["number_limit"],
+        geometric_info=configs["geometric_info"]["name"],
+    )

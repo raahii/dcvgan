@@ -13,7 +13,9 @@ tensorboard_dir: "result/debug/runs"
 log_dir: "result/debug"
 
 # geometric information type
-geometric_info: "optical-flow"
+geometric_info:
+  name: "optical-flow"
+  channel: 2
 
 # interval
 log_interval:         5
@@ -30,6 +32,11 @@ dataset:
   path: "data/raw/isogd"
   n_workers: 2
   number_limit: 100
+
+# model evaluation during training using inception score
+evaluation:
+  batchsize: 50
+  num_samples: 200
 
 # model configs
 ggen:

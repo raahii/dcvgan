@@ -18,7 +18,7 @@ format:
 	mypy --ignore-missing-imports .
 
 debug:
-	python src/train.py --config config/debug-isogd-depth.yml
+	python src/train.py --config config/debug-isogd-optical-flow.yml
 
 build:
 	docker build . -f Dockerfile.cpu -t raahii/dcvgan:cpu

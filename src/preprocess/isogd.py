@@ -2,6 +2,7 @@ import os
 import re
 import shutil
 from pathlib import Path
+from typing import List
 
 import numpy as np
 import skvideo.io
@@ -76,15 +77,18 @@ def preprocess_isogd_dataset(
             return
 
         # crop to be a square (H, H) video,
-        tr_y, tr_x, bl_y, bl_x = util.detect_face(color_video)
+        tr_y, tr_x, bl_y, bl_x = detect_face(color_video)
         if tr_y == -1:
             return
 
         center_x = (tr_x - bl_x) // 2 + bl_x
         left_x = max(center_x - (H // 2), 0)
 
+        flow_video = util.calc_optical_flow(color_video)
+
         color_video = color_video[:, :, left_x : left_x + H]
         depth_video = depth_video[:, :, left_x : left_x + H]
+        flow_video = flow_video[:, :, left_x : left_x + H]
 
         # resize
         color_video = [
@@ -94,19 +98,33 @@ def preprocess_isogd_dataset(
             dataio.resize_img(img, (img_size, img_size), "nearest")
             for img in depth_video
         ]
-        color_video, depth_video = np.stack(color_video), np.stack(depth_video)
+        flow_video = [
+            dataio.resize_img(img, (img_size, img_size), "nearest")
+            for img in flow_video
+        ]
+        color_video = np.stack(color_video)
+        depth_video = np.stack(depth_video)
         depth_video = depth_video[..., 0]  # save as grayscale image
+        flow_video = np.stack(flow_video)
 
-        # save
+        # for dataset
         name = "{}_{}_{}".format(
             color_path.parents[0].name, color_path.name[2:7], label
         )
         dataio.save_video_as_images(color_video, save_path / name / "color")
         dataio.save_video_as_images(depth_video, save_path / name / "depth")
+        np.save(str(save_path / name / "optical-flow"), flow_video)
+
         (save_path / "color").mkdir(parents=True, exist_ok=True)
         (save_path / "depth").mkdir(parents=True, exist_ok=True)
+        (save_path / "optical-flow").mkdir(parents=True, exist_ok=True)
+
+        # for visualization
         dataio.write_video(color_video, save_path / "color" / (name + ".mp4"))
         dataio.write_video(depth_video, save_path / "depth" / (name + ".mp4"))
+
+        flow_video = util.visualize_optical_flow(flow_video)
+        dataio.write_video(flow_video, save_path / "optical-flow" / (name + ".mp4"))
 
         return [name, T]
 

@@ -5,6 +5,7 @@
 __pycache__
 .mypy_cache
 
+src/evaluation/figs
 src/evaluation/result
 data
 result

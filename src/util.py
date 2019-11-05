@@ -115,6 +115,24 @@ def calc_optical_flow(video: np.ndarray):
     return np.stack(flows)
 
 
+def visualize_optical_flow(flow_video: np.ndarray):
+    color_video = []
+    shape = list(flow_video[0].shape)
+    shape[-1] = 3
+    for flow in flow_video:
+        mag, ang = cv2.cartToPolar(flow[..., 0], flow[..., 1])
+
+        hsv = np.zeros(shape, dtype=np.uint8)
+        hsv[..., 0] = ang * 180 / np.pi / 2
+        hsv[..., 1] = 255
+        hsv[..., 2] = cv2.normalize(mag, None, 0, 255, cv2.NORM_MINMAX)
+        bgr = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
+
+        color_video.append(bgr)
+
+    return color_video
+
+
 def min_max_norm(x):
     return (x - x.min()) / (x.max() - x.min())
 
