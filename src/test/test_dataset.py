@@ -6,19 +6,23 @@ import numpy as np
 import context
 from dataset import VideoDataset
 
+COLOR_CHANNEL = 3
+DEPTH_CHANNEL = 1
+FLOW_CHANNEL = 2
+
 
 def _is(img: np.ndarray, color: Union[int, List[int]]):
     return np.all(np.equal(color, img))
 
 
-def new_mockdataset(video_length, image_size):
+def new_mockdataset(video_length, image_size, geometric_info="depth"):
     inputs = {
         "name": "mock",
         "dataset_path": "data/raw/mock",
         "preprocess_func": None,
         "video_length": video_length,
         "image_size": image_size,
-        "geometric_info": "depth",
+        "geometric_info": geometric_info,
         "extension": "png",
     }
 
@@ -26,17 +30,31 @@ def new_mockdataset(video_length, image_size):
 
 
 class TestDataset(unittest.TestCase):
-    def test_batch(self):
+    def test_batch_depth(self):
         size = 64
         length = 16
-        dataset = new_mockdataset(length, size)
+        dataset = new_mockdataset(length, size, "depth")
 
         self.assertEqual(3, len(dataset))
         self.assertEqual(["color", "depth"], list(dataset[0].keys()))
 
         for batch in dataset:
-            self.assertTrue((3, length, size, size), batch["color"].shape)
-            self.assertTrue((1, length, size, size), batch["depth"].shape)
+            self.assertEqual((3, length, size, size), batch["color"].shape)
+            self.assertEqual((DEPTH_CHANNEL, length, size, size), batch["depth"].shape)
+
+    def test_batch_optical_flow(self):
+        size = 64
+        length = 16
+        dataset = new_mockdataset(length, size, "optical-flow")
+
+        self.assertEqual(3, len(dataset))
+        self.assertEqual(["color", "optical-flow"], list(dataset[0].keys()))
+
+        for batch in dataset:
+            self.assertEqual((COLOR_CHANNEL, length, size, size), batch["color"].shape)
+            self.assertEqual(
+                (FLOW_CHANNEL, length, size, size), batch["optical-flow"].shape
+            )
 
     def test_color_video_tensor(self):
         size = 64
@@ -56,7 +74,7 @@ class TestDataset(unittest.TestCase):
     def test_depth_video_tensor(self):
         size = 64
         length = 16
-        dataset = new_mockdataset(length, size)
+        dataset = new_mockdataset(length, size, "depth")
 
         colors = [0, 127, 255]
         for i, batch in enumerate(dataset):
