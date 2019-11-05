@@ -1,6 +1,11 @@
 name: Run test codes
 
-on: [push]
+on:
+  push:
+    branches:
+      - master
+      - 'feature/**'
+      - 'releases/**'
 
 jobs:
   build:
