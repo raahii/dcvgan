@@ -6,6 +6,7 @@ import torch
 import torch.nn as nn
 import torch.nn.init as init
 from PIL import Image
+from tqdm import tqdm
 
 from generator import BaseMidVideoGenerator, ColorVideoGenerator
 
@@ -141,10 +142,13 @@ def generate_samples(
     cgen: ColorVideoGenerator,
     num: int,
     batchsize: int = 20,
+    desc: str = "generating samples",
+    verbose: bool = False,
 ) -> Tuple[np.ndarray, np.ndarray]:
 
-    xc_batches, xg_batches = [], []
-    for s in range(0, num, batchsize):
+    xc_batches: List[np.ndarray] = []
+    xg_batches: List[np.ndarray] = []
+    for s in tqdm(range(0, num, batchsize), desc=desc, disable=not verbose):
         with torch.no_grad():
             xg = ggen.sample_videos(batchsize)
             xc = cgen.forward_videos(xg)
@@ -153,6 +157,7 @@ def generate_samples(
             else:
                 raise NotImplementedError
         xg = videos_to_numpy(xg)
+        xc = videos_to_numpy(xc)
 
         xg_batches.append(xg)
         xc_batches.append(xc)

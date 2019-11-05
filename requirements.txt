@@ -4,6 +4,7 @@ joblib
 tqdm
 pyyaml
 colorlog
+tqdm
 
 opencv-python
 scikit-video
