@@ -73,7 +73,7 @@ def preprocess_isogd_dataset(
         depth_video = dataio.read_video(depth_path)
         T, H, W, C = color_video.shape
 
-        if T < length:
+        if T < length + 1:
             return
 
         # crop to be a square (H, H) video,

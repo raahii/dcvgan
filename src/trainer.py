@@ -14,7 +14,8 @@ from torch.utils.data import DataLoader
 
 import dataio
 import util
-from evaluation import compute_conv_features, evaluate
+from evaluation import compute_conv_features
+from evaluation import evaluate as eval_framework
 from generator import ColorVideoGenerator, GeometricVideoGenerator
 from logger import Logger, MetricType
 
@@ -40,12 +41,13 @@ class Trainer(object):
 
         self.eval_batchsize = configs["evaluation"]["batchsize"]
         self.eval_num_smaples = configs["evaluation"]["num_samples"]
+        self.eval_metrics = configs["evaluation"]["metrics"]
 
         # dataloader for logging real samples on tensorboard
         self.dataloader_log = DataLoader(
             self.dataloader.dataset,
             batch_size=self.num_log,
-            num_workers=1,
+            num_workers=4,
             shuffle=True,
             drop_last=True,
             pin_memory=True,
@@ -141,7 +143,17 @@ class Trainer(object):
             x_real = x_real.transpose(0, 2, 1, 3, 4)  # (N, T, C, H, W)
             self.logger.tf_log_video("real_samples", x_real, iteration)
 
-    def evaluate_by_is(self, ggen: GeometricVideoGenerator, cgen: ColorVideoGenerator):
+    def evaluate(self, ggen: GeometricVideoGenerator, cgen: ColorVideoGenerator):
+        # directory contains all color videos (.mp4) of the dataset
+        dataset_dir = Path(self.dataloader.dataset.root_path) / "color"
+        if not (
+            (dataset_dir / "features.npy").exists()
+            and (dataset_dir / "probs.npy").exists()
+        ):
+            # convert to convolutional features with inpception model
+            f, p = compute_conv_features.convert(self.eval_batchsize, dataset_dir)
+            compute_conv_features.save(f, p, dataset_dir)
+
         # generate fake samples
         _, xc = util.generate_samples(
             ggen,
@@ -149,29 +161,28 @@ class Trainer(object):
             self.eval_num_smaples,
             self.eval_batchsize,
             desc=f"sampling {self.eval_num_smaples} videos for evalaution",
-            verbose=True,
+            verbose=False,
         )
         ggen, cgen = ggen.to("cpu"), cgen.to("cpu")
 
-        # in a temporary directory
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            tmp_dir = Path(tmp_dir)
+        # save them in a temporary directory
+        temp = tempfile.TemporaryDirectory()
+        temp_dir = Path(temp.name)
+        samples_dir = temp_dir / "samples"
+        samples_dir.mkdir()
+        for i, x in enumerate(xc):
+            dataio.write_video(x, samples_dir / f"{i}.mp4")
 
-            samples_dir = tmp_dir / "samples"
-            samples_dir.mkdir()
+        # convert to convolutional features with inpception model
+        f, p = compute_conv_features.convert(self.eval_batchsize, samples_dir)
+        compute_conv_features.save(f, p, temp_dir)
 
-            # save all fake sampels in .mp4
-            for i, x in enumerate(xc):
-                dataio.write_video(x, samples_dir / f"{i}.mp4")
-
-            # convert to convolutional features with inpception model
-            f, p = compute_conv_features.convert(self.eval_batchsize, samples_dir)
-            compute_conv_features.save(f, p, tmp_dir)
-
+        for m in self.eval_metrics:
             # calculate the score
-            score = evaluate.compute_metric("is", [tmp_dir])
+            r = eval_framework.compute_metric(m, [temp_dir, dataset_dir])
+            self.logger.update(m, r["score"])
 
-        self.logger.update("inception_score", score["score"])
+        temp.cleanup()
         ggen, cgen = ggen.to(self.device), cgen.to(self.device)
 
     def train(self):
@@ -190,12 +201,18 @@ class Trainer(object):
         self.logger.define("loss_gen", MetricType.Loss)
         self.logger.define("loss_idis", MetricType.Loss)
         self.logger.define("loss_vdis", MetricType.Loss)
-        self.logger.define("inception_score", MetricType.Float)
+        for m in self.configs["evaluation"]["metrics"]:
+            self.logger.define(m, MetricType.Float)
 
         # training loop
         self.logger.debug("(trainer)")
         self.logger.debug(f"epochs: {self.configs['n_epochs']}", 1)
         self.logger.debug(f"device: {self.device}", 1)
+
+        self.logger.debug("(evaluation)")
+        self.logger.debug(f"batchsize: {self.eval_batchsize}", 1)
+        self.logger.debug(f"num_samples: {self.eval_num_smaples}", 1)
+        self.logger.debug(f"metrics: {self.eval_metrics}", 1)
         self.logger.debug("(start training)")
         self.logger.print_header()
         for i in range(self.configs["n_epochs"]):
@@ -290,7 +307,7 @@ class Trainer(object):
 
                 # evaluation
                 if self.iteration % self.configs["evaluation_interval"] == 0:
-                    self.evaluate_by_is(ggen, cgen)
+                    self.evaluate(ggen, cgen)
 
                 # log
                 if self.iteration % self.configs["log_interval"] == 0:

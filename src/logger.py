@@ -227,7 +227,6 @@ class Logger(object):
         """
         add a histgram data to tensorboard
         """
-        var = var.clone().cpu().data.numpy()
         self.tf_writer.add_histogram(tag, var, step)
 
     def tf_log_image(self, x: torch.Tensor, step: int, tag: str):
