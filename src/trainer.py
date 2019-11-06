@@ -4,7 +4,7 @@ import shutil
 import tempfile
 import time
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 import numpy as np
 import torch
@@ -98,50 +98,50 @@ class Trainer(object):
             )
 
     def log_samples(self, ggen, cgen, iteration):
-        def deform(video):
-            # cast torch.tensor to np.ndarray, shape:(B,C,T,H,W)
-            video = util.videos_to_numpy(video)
-
-            # arrange videos in a grid:, shape(1,C,T,H*rows,W*cols)
-            video = util.make_video_grid(video, self.rows_log, self.cols_log)
-
-            return video
-
         ggen.eval()
         cgen.eval()
 
-        with torch.no_grad():
-            # generate fake samples
-            xg_fake = ggen.sample_videos(self.num_log)
-            xc_fake = cgen.forward_videos(xg_fake)
-            if self.geometric_info == "depth":
-                xg_fake = xg_fake.repeat(1, 3, 1, 1, 1)  # to have 3-channels
+        # fake samples
+        # generate sampels (dtype: int, axis: (B, C, T, H, W))
+        xg_fake, xc_fake = util.generate_samples(ggen, cgen, self.num_log, self.num_log)
 
-            # log histgram of fake samples
-            self.logger.tf_log_histgram(xg_fake[:, 0], "depthspace_fake", iteration)
-            self.logger.tf_log_histgram(xc_fake[:, 0], "colorspace_fake", iteration)
+        # log histgram of fake samples
+        self.logger.tf_log_histgram(xg_fake[:, 0], "geospace_fake", iteration)
+        self.logger.tf_log_histgram(xc_fake[:, 0], "colorspace_fake", iteration)
 
-            # log fake samples
-            xg_fake, xc_fake = deform(xg_fake), deform(xc_fake)
-            x_fake = np.concatenate([xg_fake, xc_fake], axis=-1)  # concat
-            x_fake = x_fake.transpose(0, 2, 1, 3, 4)  # (N, T, C, H, W)
-            self.logger.tf_log_video("fake_samples", x_fake, iteration)
+        # make a grid video
+        xg_fake = util.make_video_grid(xg_fake, self.rows_log, self.cols_log)
+        xc_fake = util.make_video_grid(xc_fake, self.rows_log, self.cols_log)
+        x_fake = np.concatenate([xg_fake, xc_fake], axis=-1)  # concat
 
-            # take real samples
-            batch = next(self.dataloader_log.__iter__())
-            xg_real, xc_real = batch[self.geometric_info], batch["color"]
-            if self.geometric_info == "depth":
-                xg_real = xg_real.repeat(1, 3, 1, 1, 1)  # to have 3-channels
+        # log fake samples (dtype: int, axis: (B, T, C, H, W))
+        x_fake = x_fake.transpose(0, 2, 1, 3, 4)
+        self.logger.tf_log_video("fake_samples", x_fake, iteration)
 
-            # log histgram of real samples
-            self.logger.tf_log_histgram(xg_real[:, 0], "depthspace_real", iteration)
-            self.logger.tf_log_histgram(xc_real[:, 0], "colorspace_real", iteration)
+        # real samples
+        # take next batch: (dtype: float, axis: (B, C, T, H, W))
+        batch = next(self.dataloader_log.__iter__())
+        xg_real, xc_real = batch[self.geometric_info], batch["color"]
 
-            # log fake samples
-            xg_real, xc_real = deform(xg_real), deform(xc_real)
-            x_real = np.concatenate([xg_real, xc_real], axis=-1)  # concat
-            x_real = x_real.transpose(0, 2, 1, 3, 4)  # (N, T, C, H, W)
-            self.logger.tf_log_video("real_samples", x_real, iteration)
+        # convert xc to np.ndarray: (dtype: int, axis: (B, C, T, H, W))
+        xc_real = util.videos_to_numpy(xc_real)
+
+        # convert xg to np.ndarray: (dtype: int, axis: (B, C, T, H, W))
+        xg_real = xg_real.data.cpu().numpy()
+        xg_real = util.normalize_geometric_info(xg_real, ggen.geometric_info)
+
+        # log histgram of real samples
+        self.logger.tf_log_histgram(xg_real[:, 0], "geospace_real", iteration)
+        self.logger.tf_log_histgram(xc_real[:, 0], "colorspace_real", iteration)
+
+        # make a grid video
+        xc_real = util.make_video_grid(xc_real, self.rows_log, self.cols_log)
+        xg_real = util.make_video_grid(xg_real, self.rows_log, self.cols_log)
+        x_real = np.concatenate([xg_real, xc_real], axis=-1)
+
+        # log fake samples (dtype: int, axis: (B, T, C, H, W))
+        x_real = x_real.transpose(0, 2, 1, 3, 4)
+        self.logger.tf_log_video("real_samples", x_real, iteration)
 
     def evaluate(self, ggen: GeometricVideoGenerator, cgen: ColorVideoGenerator):
         # directory contains all color videos (.mp4) of the dataset
