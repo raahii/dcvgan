@@ -1,5 +1,5 @@
 # experiment configs
-experiment_name: "debug-optical-flow"
+experiment_name: "debug-flow"
 
 # basic configs
 batchsize: 2
@@ -18,10 +18,10 @@ geometric_info:
   channel: 2
 
 # interval
-log_interval:         5
-log_samples_interval: 5
-snapshot_interval:    5
-evaluation_interval:  5
+log_interval:         1
+log_samples_interval: 1
+snapshot_interval:    1
+evaluation_interval:  1
 
 # training settings
 dis_update_ratio: 1 # number of D updates per every G update
@@ -37,6 +37,7 @@ dataset:
 evaluation:
   batchsize: 50
   num_samples: 200
+  metrics: ["is", "fid"]
 
 # model configs
 ggen:
