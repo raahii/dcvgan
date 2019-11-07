@@ -20,11 +20,14 @@ format:
 debug:
 	python src/train.py --config config/debug-isogd-optical-flow.yml
 
-build:
-	docker build . -f Dockerfile.cpu -t raahii/dcvgan:cpu
-
 test:
 	python -m unittest discover -s src/test -p 'test_*.py'
+
+build:
+	docker build . -f docker/Dockerfile.cpu -t raahii/dcvgan:test
+
+ci:
+	docker run --volume ${PWD}:/home/user/dcvgan --rm raahii/dcvgan:test make test
 
 deploy:
 	rsync -auvz \

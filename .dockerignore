@@ -1,3 +1,9 @@
+.git
+.empty
+.idea
+.mypy_cache
+.DS_Store
+
 data/*
 !data/raw
 data/raw/*
@@ -6,7 +12,6 @@ data/raw/*
 data/processed/*
 !data/processed/mock
 
-evaluation
 notebook
 result
 script

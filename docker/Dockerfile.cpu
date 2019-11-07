@@ -1,16 +1,22 @@
-FROM python:3.7.0-slim
+FROM python:3.7-slim
 
-RUN apt-get update \
-  && apt-get -y upgrade \
-  && apt-get install -y build-essential git wget libopencv-dev \
-  && apt-get clean \
-  && apt-get autoclean \
-  && apt-get autoremove \
+RUN apt update \
+  && apt -y upgrade \
+  && apt install -y build-essential git wget libopencv-dev \
+  && apt clean \
+  && apt autoclean \
+  && apt autoremove \
   && rm -rf /tmp/* /var/tmp/* \
   && rm -rf /var/lib/apt/lists/* \
   rm -rf /var/lib/apt/lists/*
 
-RUN pip install -U pip
+# install ffmpeg, ffprobe
+WORKDIR /tmp
+RUN wget https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz \
+  && tar xvf ffmpeg-release-amd64-static.tar.xz \
+  && cp ffmpeg-4.2.1-amd64-static/ffmpeg /usr/local/bin/ \
+  && cp ffmpeg-4.2.1-amd64-static/ffprobe /usr/local/bin/ \
+  && pip install -U pip
 
 # Create a non-root user and switch to it
 RUN adduser --disabled-password --gecos '' --shell /bin/bash user
