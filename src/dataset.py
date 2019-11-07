@@ -1,5 +1,6 @@
 import shutil
 from pathlib import Path
+from typing import Any, Callable, Dict, List, Tuple
 
 import numpy as np
 from torch.utils.data import Dataset
@@ -16,15 +17,15 @@ PROCESSED_PATH = Path("data/processed")
 class VideoDataset(Dataset):
     def __init__(
         self,
-        name,
-        dataset_path,
-        preprocess_func,
-        video_length=16,
-        image_size=64,
-        number_limit=-1,
-        geometric_info="depth",
-        mode="train",
-        extension="jpg",
+        name: str,
+        dataset_path: Path,
+        preprocess_func: Callable[[Path, Path, str, int, int, int], None],
+        video_length: int = 16,
+        image_size: int = 64,
+        number_limit: int = -1,
+        geometric_info: str = "depth",
+        mode: str = "train",
+        extension: str = "jpg",
     ):
         # TODO: Now only supporting mode 'train'.
         root_path = PROCESSED_PATH / name / mode
@@ -32,7 +33,9 @@ class VideoDataset(Dataset):
             print(">> Preprocessing ... (->{})".format(root_path))
             root_path.mkdir(parents=True, exist_ok=True)
             try:
-                preprocess_func(dataset_path, root_path, mode, video_length, image_size)
+                preprocess_func(
+                    dataset_path, root_path, mode, video_length, image_size, -1
+                )
             except Exception as e:
                 shutil.rmtree(str(root_path))
                 raise e
@@ -44,11 +47,11 @@ class VideoDataset(Dataset):
         if number_limit != -1:
             lines = lines[:number_limit]
 
-        video_list = []
+        video_list: List[Tuple[Path, int]] = []
         for line in lines:
             # append [color_path, n_frames]
             video_path, n_frames = line.strip().split(" ")
-            video_list.append([root_path / video_path, int(n_frames)])
+            video_list.append((root_path / video_path, int(n_frames)))
 
         self.dataset_path = dataset_path
         self.root_path = root_path
@@ -62,7 +65,9 @@ class VideoDataset(Dataset):
     def __len__(self):
         return len(self.video_list)
 
-    def __getitem__(self, i):
+    def __getitem__(self, i: int):
+        path: Path
+        n_frames: int
         path, n_frames = self.video_list[i]
 
         # if video length is longer than pre-defined max length, select subsequence randomly.
@@ -76,19 +81,21 @@ class VideoDataset(Dataset):
 
         # read color video
         placeholder = str(path / "color" / ("{:03d}." + self.ext))
-        color_video = [dataio.read_img(placeholder.format(i)) for i in frames_to_read]
-        color_video = np.stack(color_video)
+        color_video: np.ndarray = np.stack(
+            [dataio.read_img(placeholder.format(i)) for i in frames_to_read]
+        )
         color_video = color_video.transpose(3, 0, 1, 2)  # change to channel first
         color_video = color_video.astype(np.float32) / 127.5 - 1.0  # change value range
 
         # read geometric infomation video
         if self.geometric_info == "depth":
             placeholder = str(path / self.geometric_info / ("{:03d}." + self.ext))
-            geo_video = [
-                dataio.read_img(placeholder.format(i), grayscale=True)
-                for i in frames_to_read
-            ]
-            geo_video = np.stack(geo_video)
+            geo_video: np.ndarray = np.stack(
+                [
+                    dataio.read_img(placeholder.format(i), grayscale=True)
+                    for i in frames_to_read
+                ]
+            )
             geo_video = geo_video.transpose(3, 0, 1, 2)  # change to channel first
             geo_video = geo_video.astype(np.float32) / 127.5 - 1.0  # change value range
         elif self.geometric_info == "optical-flow":
@@ -104,7 +111,7 @@ class VideoDataset(Dataset):
         return {"color": color_video, self.geometric_info: geo_video}
 
 
-def new_dataset(configs):
+def new_dataset(configs: Dict[str, Any]):
     if configs["dataset"]["name"] not in ["mug", "isogd", "surreal"]:
         raise NotImplementedError
 

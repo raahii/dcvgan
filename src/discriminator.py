@@ -9,7 +9,7 @@ import util
 
 
 class Noise(nn.Module):
-    def __init__(self, use_noise, sigma=0.2):
+    def __init__(self, use_noise: bool, sigma: float = 0.2):
         super(Noise, self).__init__()
         self.use_noise = use_noise
         self.sigma = sigma
@@ -28,7 +28,14 @@ class Noise(nn.Module):
 
 
 class ImageDiscriminator(nn.Module):
-    def __init__(self, ch1, ch2, use_noise=False, noise_sigma=None, ndf=64):
+    def __init__(
+        self,
+        ch1: int,
+        ch2: int,
+        use_noise: bool = False,
+        noise_sigma: float = 0,
+        ndf: int = 64,
+    ):
         super(ImageDiscriminator, self).__init__()
 
         self.ch1, self.ch2 = ch1, ch2
@@ -63,7 +70,7 @@ class ImageDiscriminator(nn.Module):
 
         self.device = util.current_device()
 
-    def forward(self, xg, xc):
+    def forward(self, xg: torch.Tensor, xc: torch.Tensor) -> torch.Tensor:
         hg = self.conv_g(xg)
         hc = self.conv_c(xc)
         h = torch.cat([hc, hg], 1)
@@ -71,7 +78,7 @@ class ImageDiscriminator(nn.Module):
 
         return h
 
-    def __str__(self, name="idis"):
+    def __str__(self, name: str = "idis") -> str:
         return json.dumps(
             {
                 name: {
@@ -86,7 +93,14 @@ class ImageDiscriminator(nn.Module):
 
 
 class VideoDiscriminator(nn.Module):
-    def __init__(self, ch1, ch2, use_noise=False, noise_sigma=None, ndf=64):
+    def __init__(
+        self,
+        ch1: int,
+        ch2: int,
+        use_noise: bool = False,
+        noise_sigma: float = 0,
+        ndf: int = 64,
+    ):
         super(VideoDiscriminator, self).__init__()
 
         self.ch1, self.ch2 = ch1, ch2
@@ -132,7 +146,7 @@ class VideoDiscriminator(nn.Module):
 
         return h
 
-    def __str__(self, name="vdis"):
+    def __str__(self, name: str = "vdis") -> str:
         return json.dumps(
             {
                 name: {

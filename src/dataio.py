@@ -1,14 +1,12 @@
 from pathlib import Path
-from typing import Tuple
+from typing import Tuple, Union
 
 import cv2
 import numpy as np
-import scipy.io
 import skvideo.io
-from PIL import Image
 
 
-def read_img(path: Path, grayscale: bool = False):
+def read_img(path: Union[str, Path], grayscale: bool = False) -> np.ndarray:
     """
     Read a image using opencv function
 
@@ -27,7 +25,7 @@ def read_img(path: Path, grayscale: bool = False):
     return img
 
 
-def write_img(img: np.ndarray, path: Path):
+def write_img(img: np.ndarray, path: Union[str, Path]) -> None:
     """
     Write a image using opencv function
 
@@ -43,7 +41,7 @@ def write_img(img: np.ndarray, path: Path):
     cv2.imwrite(str(path), cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
 
 
-def resize_img(img: np.ndarray, size: Tuple, mode: str = "linear"):
+def resize_img(img: np.ndarray, size: Tuple, mode: str = "linear") -> np.ndarray:
     """
     Resize image using opencv function
 
@@ -73,7 +71,7 @@ def resize_img(img: np.ndarray, size: Tuple, mode: str = "linear"):
     return cv2.resize(img, size, interpolation=cv_modes[mode])
 
 
-def save_video_as_images(video_tensor, path):
+def save_video_as_images(video_tensor: np.ndarray, path: Path) -> None:
     """
     Save video frames into the directory
 
@@ -92,7 +90,7 @@ def save_video_as_images(video_tensor, path):
         write_img(frame, placeholder.format(i))
 
 
-def read_video(path):
+def read_video(path: Path) -> np.ndarray:
     """
     read a video
 
@@ -112,7 +110,7 @@ def read_video(path):
     return video_tensor
 
 
-def write_video(video_tensor, path, m=1):
+def write_video(video_tensor: np.ndarray, path: Path) -> None:
     """
     save a video
 
@@ -125,52 +123,7 @@ def write_video(video_tensor, path, m=1):
         path to the video
     """
     writer = skvideo.io.FFmpegWriter(str(path))
-    # if m > 0:
-    #     m = int(m)
-    #     video_tensor = np.repeat(video_tensor, m, axis=0)
-    # else:
-    #     raise ValueError
 
     for frame in video_tensor:
         writer.writeFrame(frame)
     writer.close()
-
-
-def read_depth_mat(path):
-    data_dict = scipy.io.loadmat(str(path))
-
-    i, depth_data = 1, []
-    while True:
-        key = "depth_{}".format(i)
-        if key not in data_dict:
-            break
-
-        depth_data.append(data_dict[key])
-        i += 1
-
-    depth_data = np.stack(depth_data)
-    return depth_data
-
-
-def read_segm_mat(path):
-    data_dict = scipy.io.loadmat(str(path))
-
-    i, segm_data = 1, []
-    while True:
-        key = "segm_{}".format(i)
-        if key not in data_dict:
-            break
-
-        segm_data.append(data_dict[key])
-        i += 1
-
-    segm_data = np.stack(segm_data)
-    return segm_data
-
-
-def read_joints_mat(path):
-    data_dict = scipy.io.loadmat(str(path))
-    joints2d = data_dict["joints2D"]
-    joints2d = joints2d.transpose(2, 1, 0)
-
-    return joints2d

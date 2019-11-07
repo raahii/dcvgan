@@ -45,7 +45,12 @@ def detect_face(video_tensor, num_frames_to_use=6):
 
 
 def preprocess_isogd_dataset(
-    dataset_path, save_path, mode, length, img_size, n_jobs=-1
+    dataset_path: Path,
+    save_path: Path,
+    mode: str,
+    length: int,
+    img_size: int,
+    n_jobs: int = -1,
 ):
     """
     Preprocessing function for Chalearn LAP IsoGD Database

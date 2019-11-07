@@ -20,11 +20,11 @@ from preprocess.mug import preprocess_mug_dataset
 from trainer import Trainer
 
 
-def worker_init_fn(worker_id):
+def worker_init_fn(worker_id: int):
     random.seed(worker_id)
 
 
-def fix_seed(value):
+def fix_seed(value: int):
     random.seed(value)
     np.random.seed(value)
     torch.manual_seed(value)
@@ -33,7 +33,7 @@ def fix_seed(value):
     torch.backends.cudnn.benchmark = True
 
 
-def create_optimizer(m: nn.Module, lr: float, decay: float):
+def create_optimizer(m: nn.Module, lr: float, decay: float) -> optim.Adam:
     return optim.Adam(m.parameters(), lr=lr, betas=(0.5, 0.999), weight_decay=decay)
 
 

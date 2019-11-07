@@ -63,8 +63,8 @@ class Trainer(object):
         # copy config file to log directory
         shutil.copy(configs["config_path"], str(self.logger.path / "config.yml"))
 
-        self.iteration = 0
-        self.epoch = 0
+        self.iteration: int = 0
+        self.epoch: int = 0
         self.save_classobj()
 
     def compute_dis_loss(self, y_real, y_fake):
@@ -115,7 +115,7 @@ class Trainer(object):
         x_fake = np.concatenate([xg_fake, xc_fake], axis=-1)  # concat
 
         # log fake samples (dtype: int, axis: (B, T, C, H, W))
-        x_fake = x_fake.transpose(0, 2, 1, 3, 4)
+        x_fake: np.ndarray = x_fake.transpose(0, 2, 1, 3, 4)
         self.logger.tf_log_video("fake_samples", x_fake, iteration)
 
         # real samples

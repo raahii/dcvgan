@@ -198,7 +198,7 @@ def generate_samples(
             xg = ggen.sample_videos(batchsize)
             xc = cgen.forward_videos(xg)
 
-        xg = xg.data.cpu().numpy()
+        xg = xg.cpu().numpy()
         xg = np.clip(xg, -1, 1)
         xc = videos_to_numpy(xc)
 

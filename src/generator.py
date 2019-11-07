@@ -10,12 +10,12 @@ import util
 class GeometricVideoGenerator(nn.Module):
     def __init__(
         self,
-        dim_z_content,
-        dim_z_motion,
-        channel,
-        geometric_info,
-        ngf=64,
-        video_length=16,
+        dim_z_content: int,
+        dim_z_motion: int,
+        channel: int,
+        geometric_info: str,
+        ngf: int = 64,
+        video_length: int = 16,
     ):
         super(GeometricVideoGenerator, self).__init__()
 
@@ -29,7 +29,7 @@ class GeometricVideoGenerator(nn.Module):
         dim_z = dim_z_motion + dim_z_content
         self.dim_z = dim_z
 
-        self.recurrent = nn.GRUCell(dim_z_motion, dim_z_motion)
+        self.recurrent: nn.Module = nn.GRUCell(dim_z_motion, dim_z_motion)
 
         self.main = nn.Sequential(
             nn.ConvTranspose2d(dim_z, ngf * 8, 4, 1, 0, bias=False),
@@ -50,7 +50,7 @@ class GeometricVideoGenerator(nn.Module):
 
         self.device = util.current_device()
 
-    def sample_z_m(self, batchsize):
+    def sample_z_m(self, batchsize: int) -> torch.Tensor:
         h_t = [self.get_gru_initial_state(batchsize)]
         for frame_num in range(self.video_length):
             e_t = self.get_iteration_noise(batchsize)
@@ -63,14 +63,14 @@ class GeometricVideoGenerator(nn.Module):
 
         return z_m
 
-    def sample_z_content(self, batchsize):
+    def sample_z_content(self, batchsize: int) -> torch.Tensor:
         z_c = torch.empty((batchsize, self.dim_z_content), device=self.device).normal_()
         z_c = z_c.repeat(1, self.video_length).view(
             batchsize * self.video_length, -1
         )  # same operation as np.repeat
         return z_c
 
-    def sample_z_video(self, batchsize):
+    def sample_z_video(self, batchsize: int) -> torch.Tensor:
         z_content = self.sample_z_content(batchsize)
         z_motion = self.sample_z_m(batchsize)
 
@@ -78,7 +78,7 @@ class GeometricVideoGenerator(nn.Module):
 
         return z
 
-    def sample_videos(self, batchsize):
+    def sample_videos(self, batchsize: int) -> torch.Tensor:
         z = self.sample_z_video(batchsize)
 
         h = self.main(z.view(batchsize * self.video_length, self.dim_z, 1, 1))
@@ -88,13 +88,13 @@ class GeometricVideoGenerator(nn.Module):
 
         return h
 
-    def get_gru_initial_state(self, batchsize):
+    def get_gru_initial_state(self, batchsize: int) -> torch.Tensor:
         return torch.empty((batchsize, self.dim_z_motion), device=self.device).normal_()
 
-    def get_iteration_noise(self, batchsize):
+    def get_iteration_noise(self, batchsize: int) -> torch.Tensor:
         return torch.empty((batchsize, self.dim_z_motion), device=self.device).normal_()
 
-    def __str__(self, name="ggen"):
+    def __str__(self, name: str = "ggen") -> str:
         return json.dumps(
             {
                 name: {
@@ -110,7 +110,7 @@ class GeometricVideoGenerator(nn.Module):
 
 
 class Inconv(nn.Module):
-    def __init__(self, in_ch, out_ch):
+    def __init__(self, in_ch: int, out_ch: int):
         super(Inconv, self).__init__()
         self.main = nn.Sequential(
             nn.Conv2d(in_ch, out_ch, kernel_size=3, stride=1, padding=1, bias=False),
@@ -124,7 +124,7 @@ class Inconv(nn.Module):
 
 
 class DownBlock(nn.Module):
-    def __init__(self, in_ch, out_ch, dropout=False):
+    def __init__(self, in_ch: int, out_ch: int, dropout=False):
         super(DownBlock, self).__init__()
 
         layers = [
@@ -146,7 +146,7 @@ class DownBlock(nn.Module):
 
 
 class UpBlock(nn.Module):
-    def __init__(self, in_ch, out_ch, dropout=False):
+    def __init__(self, in_ch: int, out_ch: int, dropout: bool = False):
         super(UpBlock, self).__init__()
 
         layers = [
@@ -170,7 +170,7 @@ class UpBlock(nn.Module):
 
 
 class Outconv(nn.Module):
-    def __init__(self, in_ch, out_ch):
+    def __init__(self, in_ch: int, out_ch: int):
         super(Outconv, self).__init__()
 
         self.main = nn.Sequential(
@@ -187,7 +187,7 @@ class Outconv(nn.Module):
 
 
 class ColorVideoGenerator(nn.Module):
-    def __init__(self, in_ch, dim_z, ngf=64, video_length=16):
+    def __init__(self, in_ch: int, dim_z: int, ngf: int = 64, video_length: int = 16):
         super(ColorVideoGenerator, self).__init__()
 
         self.in_ch = in_ch
@@ -226,7 +226,7 @@ class ColorVideoGenerator(nn.Module):
         self.channel = 3
         self.video_length = video_length
 
-    def make_hidden(self, batchsize):
+    def make_hidden(self, batchsize: int) -> torch.Tensor:
         z = torch.empty((batchsize, self.dim_z), device=self.device).normal_()
         z = z.unsqueeze(-1).unsqueeze(-1)  # (B, dim_z, 1, 1)
 
@@ -267,7 +267,7 @@ class ColorVideoGenerator(nn.Module):
 
         return ys
 
-    def __str__(self, name="cgen"):
+    def __str__(self, name: str = "cgen") -> str:
         return json.dumps(
             {
                 name: {

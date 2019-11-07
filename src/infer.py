@@ -2,6 +2,7 @@ import argparse
 from pathlib import Path
 
 import torch
+import torch.nn as nn
 import yaml
 from joblib import Parallel, delayed
 from tqdm import tqdm
@@ -10,7 +11,7 @@ import dataio
 import util
 
 
-def load_model(model_path, params_path):
+def load_model(model_path: Path, params_path: Path) -> nn.Module:
     model = torch.load(model_path, map_location="cpu")
     params = torch.load(params_path, map_location="cpu")
     model.load_state_dict(params)
@@ -45,41 +46,26 @@ def main():
     )
 
     # generate samples
+    xg, xc = util.generate_samples(ggen, cgen, args.n_samples, args.batchsize)
+
+    # save samples
     color_dir = args.save_dir / "color"
-    depth_dir = args.save_dir / "depth"
+    geo_dir = args.save_dir / configs["geometric_info"]
     color_dir.mkdir(parents=True, exist_ok=True)
-    depth_dir.mkdir(parents=True, exist_ok=True)
-    for i in tqdm(range(0, args.n_samples, args.batchsize)):
-        with torch.no_grad():
-            xg = ggen.sample_videos(args.batchsize)
-            xc = cgen.forward_videos(xg)
+    geo_dir.mkdir(parents=True, exist_ok=True)
 
-        if configs["geometric_info"] == "depth":
-            xg = xg.repeat(1, 3, 1, 1, 1)
-        else:
-            raise NotImplementedError
-
-        xg = util.videos_to_numpy(xg)
-        xg = xg.transpose(0, 2, 3, 4, 1)
-        xc = util.videos_to_numpy(xc)
-        xc = xc.transpose(0, 2, 3, 4, 1)
-
-        Parallel(n_jobs=10, verbose=0)(
-            [
-                delayed(dataio.write_video)(d, depth_dir / "{:06d}.mp4".format(i + j))
-                for j, d in enumerate(xg)
-            ]
-        )
-        Parallel(n_jobs=10, verbose=0)(
-            [
-                delayed(dataio.write_video)(c, color_dir / "{:06d}.mp4".format(i + j))
-                for j, c in enumerate(xc)
-            ]
-        )
-
-        # for j, (d, c) in enumerate(zip(dv, cv)):
-        #     dataio.write_video(d, depth_dir/"{:06d}.mp4".format(i+j))
-        #     dataio.write_video(c, color_dir/"{:06d}.mp4".format(i+j))
+    Parallel(n_jobs=-1, verbose=0)(
+        [
+            delayed(dataio.write_video)(d, geo_dir / "{:06d}.mp4".format(i))
+            for i, d in enumerate(xg)
+        ]
+    )
+    Parallel(n_jobs=-1, verbose=0)(
+        [
+            delayed(dataio.write_video)(c, color_dir / "{:06d}.mp4".format(i))
+            for i, c in enumerate(xc)
+        ]
+    )
 
 
 if __name__ == "__main__":

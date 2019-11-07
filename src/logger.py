@@ -32,7 +32,7 @@ class Metric(object):
 
     def __init__(self, mtype: MetricType, priority: int, tensorboard: bool):
         if mtype not in self.mtype_list:
-            raise Exception("mtype is invalid, %s".format(self.mtype_list))
+            raise Exception(f"mtype is invalid, {self.mtype_list}")
 
         self.mtype: MetricType = mtype
         self.params: Dict[str, Any] = {}
@@ -152,7 +152,7 @@ class Logger(object):
             log_string += "{:>15} ".format(name)
         self.info(log_string)
 
-    def log(self, x_axis_metric="iteration"):
+    def log(self, x_axis_metric: str = "iteration"):
         self.update("elapsed_time", time.time())
 
         # tensorboard
@@ -223,23 +223,23 @@ class Logger(object):
 
             self.tf_writer.add_scalar(name, value, step)
 
-    def tf_log_histgram(self, var, tag, step):
+    def tf_log_histgram(self, var: np.ndarray, tag: str, step: int):
         """
         add a histgram data to tensorboard
         """
         self.tf_writer.add_histogram(tag, var, step)
 
-    def tf_log_image(self, x: torch.Tensor, step: int, tag: str):
+    def tf_log_image(self, x: np.ndarray, tag: str, step: int):
         """
         add a image data to tensorboard
         """
         self.tf_writer.add_image(tag, x, step)
 
-    def tf_log_video(self, name, videos, step):
+    def tf_log_video(self, x: np.ndarray, tag: str, step: int):
         """
         add video data to tensorboard
         """
-        self.tf_writer.add_video(name, videos, fps=8, global_step=step)
+        self.tf_writer.add_video(tag, x, fps=8, global_step=step)
 
     def tf_hyperparams(self, values: Dict[str, Any]):
         self.tf_writer.add_hparams(values, {})

@@ -18,4 +18,10 @@ tensorboard
 tensorboardX
 moviepy
 
+flake8
+isort
+black
+mypy
+typeshed
+
 # face_recognition
