@@ -125,11 +125,11 @@ def write_video(video_tensor, path, m=1):
         path to the video
     """
     writer = skvideo.io.FFmpegWriter(str(path))
-    if m > 0:
-        m = int(m)
-        video_tensor = np.repeat(video_tensor, m, axis=0)
-    else:
-        raise ValueError
+    # if m > 0:
+    #     m = int(m)
+    #     video_tensor = np.repeat(video_tensor, m, axis=0)
+    # else:
+    #     raise ValueError
 
     for frame in video_tensor:
         writer.writeFrame(frame)

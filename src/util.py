@@ -162,7 +162,7 @@ def normalize_geometric_info(xg: np.ndarray, geometric_info: str) -> np.ndarray:
     """
 
     if geometric_info == "depth":
-        xg = xg.tile(1, 3, 1, 1, 1)
+        xg = np.tile(xg, (1, 3, 1, 1, 1))
         xg = (xg + 1) / 2 * 255
         xg = xg.astype("uint8")
     elif geometric_info == "optical-flow":

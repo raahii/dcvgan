@@ -92,7 +92,6 @@ class VideoDataset(Dataset):
             geo_video = geo_video.transpose(3, 0, 1, 2)  # change to channel first
             geo_video = geo_video.astype(np.float32) / 127.5 - 1.0  # change value range
         elif self.geometric_info == "optical-flow":
-            # dummy tensor
             geo_video = np.load(
                 str(path / (self.geometric_info + ".npy")), mmap_mode="r"
             )
