@@ -12,6 +12,6 @@ data/raw/*
 data/processed/*
 !data/processed/mock
 
-notebook
-result
-script
+src/evaluation/models/weights/
+notebook/
+result/
