@@ -53,7 +53,6 @@ class Trainer(object):
             pin_memory=True,
         )
 
-        self.gen_samples_path = self.logger.path / "videos"
         self.model_snapshots_path = self.logger.path / "models"
         for p in [self.gen_samples_path, self.model_snapshots_path]:
             p.mkdir(parents=True, exist_ok=True)
@@ -170,7 +169,7 @@ class Trainer(object):
 
         # log fake samples (dtype: int, axis: (B, T, C, H, W))
         x_fake = x_fake.transpose(0, 2, 1, 3, 4)
-        self.logger.tf_log_video("fake_samples", x_fake, iteration)
+        self.logger.tf_log_video(x_fake, "fake_samples", iteration)
 
         # real samples
         # take next batch: (dtype: float, axis: (B, C, T, H, W))
@@ -195,7 +194,7 @@ class Trainer(object):
 
         # log fake samples (dtype: int, axis: (B, T, C, H, W))
         x_real = x_real.transpose(0, 2, 1, 3, 4)
-        self.logger.tf_log_video("real_samples", x_real, iteration)
+        self.logger.tf_log_video(x_real, "real_samples", iteration)
 
     def evaluate(self, ggen: GeometricVideoGenerator, cgen: ColorVideoGenerator):
         """

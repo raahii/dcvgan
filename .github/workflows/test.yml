@@ -15,11 +15,8 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v1
 
-    - name: Pull docker image
-      run: docker pull raahii/dcvgan:test && docker images
-
     - name: Build image with the latest sources
-      run: docker build --cache-from raahii/dcvgan:test -t raahii/dcvgan:test -f docker/Dockerfile.cpu .
+      run: docker build --cache-from docker.io/raahii/dcvgan:test -t raahii/dcvgan:test -f docker/Dockerfile.cpu .
       env:
         DOCKER_BUILDKIT: 1
 
