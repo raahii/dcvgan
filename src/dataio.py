@@ -8,12 +8,20 @@ import skvideo.io
 
 def read_img(path: Union[str, Path], grayscale: bool = False) -> np.ndarray:
     """
-    Read a image using opencv function
+    Read a image using opencv.
 
     Parameters
     ----------
-    path : pathlib.Path or string
-        path to image
+    path : pathlib.Path or str
+        Path object or file name to read image.
+
+    grayscale : bool
+        If true, the image is saved in grayscale.
+
+    Returns
+    -------
+    img : numpy.ndarray
+        Read Image (dtype: np.uint8, axis: (H, W, C), order: RGB).
     """
     img = cv2.imread(str(path))
     if grayscale:
@@ -27,15 +35,15 @@ def read_img(path: Union[str, Path], grayscale: bool = False) -> np.ndarray:
 
 def write_img(img: np.ndarray, path: Union[str, Path]) -> None:
     """
-    Write a image using opencv function
+    Write a image using opencv.
 
     Parameters
     ----------
-    img:
-        image tensor in the shape of (height, width, channel)
+    img : np.ndarray
+        Image to be saved (dtype: uint8, axis: (H, W, C), order: RGB).
 
     path : pathlib.Path or string
-        path to image
+        Path object or file name to be saved image.
     """
 
     cv2.imwrite(str(path), cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
@@ -43,23 +51,28 @@ def write_img(img: np.ndarray, path: Union[str, Path]) -> None:
 
 def resize_img(img: np.ndarray, size: Tuple, mode: str = "linear") -> np.ndarray:
     """
-    Resize image using opencv function
+    Resize image using opencv.
 
     Parameters
     ----------
-    img: np.ndarray
-        image tensor in the shape of (height, width, channel)
+    img : np.ndarray
+        Input image (dtype: uint8, axis: (H, W, C), order: RGB).
 
     size : Tuple
-        shape (height, width)
+        Shape after resized (axis: (H, W)).
 
     mode: str
-        resize algorithm. choices:
+        Resize algorithm. choices:
         - "nearest"
         - "linear"
         - "area"
         - "cubic"
         - "lanczos4"
+
+    Returns
+    -------
+    img : numpy.ndarray
+        Resized Image.
     """
     cv_modes = {
         "nearest": cv2.INTER_NEAREST,
@@ -73,15 +86,15 @@ def resize_img(img: np.ndarray, size: Tuple, mode: str = "linear") -> np.ndarray
 
 def save_video_as_images(video_tensor: np.ndarray, path: Path) -> None:
     """
-    Save video frames into the directory
+    Save video frames into input path with indexed file name.
 
     Parameters
     ----------
-    video_tensor: numpy.array
-        video tensor in the shape of (frame, height, width, channel)
+    video_tensor : numpy.array
+        Video to be saved (dtype: uint8, axis: (T, H, W, C), RGB order)
 
     path : pathlib.Path
-        path to the video
+        Path object to save video.
     """
     path.mkdir(parents=True, exist_ok=True)
 
@@ -92,38 +105,38 @@ def save_video_as_images(video_tensor: np.ndarray, path: Path) -> None:
 
 def read_video(path: Path) -> np.ndarray:
     """
-    read a video
+    Read a video using scikit-video(ffmpeg).
 
     Parameters
     ----------
-    path : string or pathlib.Path
-        path to the video
+    path : pathlib.Path
+        Path object to read video.
 
     Returns
     -------
-    video_tensor : numpy.array
-        video tensor in the shape of (frame, height, width, channel)
+    video : numpy.ndarray
+        Read video (dtype: np.uint8, axis: (T, H, W, C), order: RGB).
     """
     videogen = skvideo.io.vreader(str(path))
-    video_tensor = np.stack([frame for frame in videogen])
+    video = np.stack([frame for frame in videogen])
 
-    return video_tensor
+    return video
 
 
-def write_video(video_tensor: np.ndarray, path: Path) -> None:
+def write_video(video: np.ndarray, path: Path) -> None:
     """
-    save a video
+    Save a video using scikit-video(ffmpeg).
 
     Parameters
     ----------
-    video_tensor: numpy.array
-        video tensor in the shape of (frame, height, width, channel)
+    video: numpy.ndarray
+        Video to save (dtype: uint8, axis: (T, H, W, C), order: RGB).
 
-    path : string or pathlib.Path
-        path to the video
+    path : pathlib.Path
+        Path object to save video
     """
     writer = skvideo.io.FFmpegWriter(str(path))
 
-    for frame in video_tensor:
+    for frame in video:
         writer.writeFrame(frame)
     writer.close()

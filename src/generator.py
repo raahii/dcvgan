@@ -8,6 +8,31 @@ import util
 
 
 class GeometricVideoGenerator(nn.Module):
+    """
+    The geometric information video generator.
+
+    Parameters
+    ----------
+    dim_z_content : int
+        Number of dimension of the content latent variable.
+
+    dim_z_motion : int
+        Number of dimension of the motion latent variable.
+
+    channel : int
+        Number of channels of output video
+
+    geometric_info : str
+        Type of the geometric infomation.
+        The choices are "depth" or "flow"
+
+    ngf : int
+        Standard number of the kernel filters
+
+    video_length : int
+        The length of output video
+    """
+
     def __init__(
         self,
         dim_z_content: int,
@@ -50,6 +75,12 @@ class GeometricVideoGenerator(nn.Module):
 
         self.device = util.current_device()
 
+    def get_gru_initial_state(self, batchsize: int) -> torch.Tensor:
+        return torch.empty((batchsize, self.dim_z_motion), device=self.device).normal_()
+
+    def get_iteration_noise(self, batchsize: int) -> torch.Tensor:
+        return torch.empty((batchsize, self.dim_z_motion), device=self.device).normal_()
+
     def sample_z_m(self, batchsize: int) -> torch.Tensor:
         h_t = [self.get_gru_initial_state(batchsize)]
         for frame_num in range(self.video_length):
@@ -79,6 +110,21 @@ class GeometricVideoGenerator(nn.Module):
         return z
 
     def sample_videos(self, batchsize: int) -> torch.Tensor:
+        """
+        Sample geometric infomation videos. Equivalent to 'forward' method.
+
+        Parameters
+        ----------
+        batchsize : int
+            Number of videos.
+
+        Returns
+        -------
+        h : torch.Tensor
+            Geometric infomation videos.
+            (shape: (batchsize, self.video_length, self.channel, 64, 64),
+             value range: [-1, 1])
+        """
         z = self.sample_z_video(batchsize)
 
         h = self.main(z.view(batchsize * self.video_length, self.dim_z, 1, 1))
@@ -87,12 +133,6 @@ class GeometricVideoGenerator(nn.Module):
         h = h.permute(0, 2, 1, 3, 4)
 
         return h
-
-    def get_gru_initial_state(self, batchsize: int) -> torch.Tensor:
-        return torch.empty((batchsize, self.dim_z_motion), device=self.device).normal_()
-
-    def get_iteration_noise(self, batchsize: int) -> torch.Tensor:
-        return torch.empty((batchsize, self.dim_z_motion), device=self.device).normal_()
 
     def __str__(self, name: str = "ggen") -> str:
         return json.dumps(
@@ -110,6 +150,18 @@ class GeometricVideoGenerator(nn.Module):
 
 
 class Inconv(nn.Module):
+    """
+    The first layer of the color video generator.
+
+    Parameters
+    ----------
+    in_ch : int
+        Number of input channels of convolution layer.
+
+    out_ch : int
+        Number of output channels of convolution layer.
+    """
+
     def __init__(self, in_ch: int, out_ch: int):
         super(Inconv, self).__init__()
         self.main = nn.Sequential(
@@ -124,6 +176,21 @@ class Inconv(nn.Module):
 
 
 class DownBlock(nn.Module):
+    """
+    A convolutional block of the color video generator.
+
+    Parameters
+    ----------
+    in_ch : int
+        Number of input channels of convolution layer.
+
+    out_ch : int
+        Number of output channels of convolution layer.
+
+    dropout : bool
+        If true, dropout layer is added after batch norm layer.
+    """
+
     def __init__(self, in_ch: int, out_ch: int, dropout=False):
         super(DownBlock, self).__init__()
 
@@ -146,6 +213,21 @@ class DownBlock(nn.Module):
 
 
 class UpBlock(nn.Module):
+    """
+    A transposed convolutional block of the color video generator.
+
+    Parameters
+    ----------
+    in_ch : int
+        Number of input channels of convolution layer.
+
+    out_ch : int
+        Number of output channels of convolution layer.
+
+    dropout : bool
+        If true, dropout layer is added after batch norm layer.
+    """
+
     def __init__(self, in_ch: int, out_ch: int, dropout: bool = False):
         super(UpBlock, self).__init__()
 
@@ -170,6 +252,18 @@ class UpBlock(nn.Module):
 
 
 class Outconv(nn.Module):
+    """
+    The last layer of the color video generator.
+
+    Parameters
+    ----------
+    in_ch : int
+        Number of input channels of convolution layer.
+
+    out_ch : int
+        Number of output channels of convolution layer.
+    """
+
     def __init__(self, in_ch: int, out_ch: int):
         super(Outconv, self).__init__()
 
@@ -187,6 +281,24 @@ class Outconv(nn.Module):
 
 
 class ColorVideoGenerator(nn.Module):
+    """
+    The color video generator.
+
+    Parameters
+    ----------
+    in_ch : int
+        Number of channels of the input geometric information video.
+
+    dim_z : int
+        Number of dimension of the color latent variable
+
+    ngf : int
+        Standard number of the kernel filters
+
+    video_length : int
+        The length of input/output video
+    """
+
     def __init__(self, in_ch: int, dim_z: int, ngf: int = 64, video_length: int = 16):
         super(ColorVideoGenerator, self).__init__()
 
@@ -233,6 +345,19 @@ class ColorVideoGenerator(nn.Module):
         return z
 
     def forward(self, x, z):
+        """
+        Foward method to convert a geometric infomation image to color image.
+
+        Parameters
+        ----------
+        xs : torch.Tensor
+            Input geometric infomation videos.
+
+        Returns
+        -------
+        h : torch.Tensor
+            Color videos.
+        """
         # video to images
         B, C, H, W = x.shape
 
@@ -253,15 +378,34 @@ class ColorVideoGenerator(nn.Module):
 
         return h
 
-    def forward_videos(self, xs):
+    def forward_videos(self, xs: torch.Tensor) -> torch.Tensor:
+        """
+        Forward method for videos but not images.
+
+        Parameters
+        ----------
+        xs : torch.Tensor
+            Input geometric infomation videos.
+
+        Returns
+        -------
+        h : torch.Tensor
+            Color videos.
+        """
+        # create z_color for video frames batches
         B, C, T, H, W = xs.shape
         zs = self.make_hidden(B)  # (B,    C, 1, 1)
         zs = zs.unsqueeze(1).repeat(1, T, 1, 1, 1)  # (B, T, C, 1, 1)
         zs = zs.view(B * T, -1, 1, 1)
 
+        # consider video batches as image batches
         xs = xs.permute(0, 2, 1, 3, 4)  # (B, T, C, H, W)
         xs = xs.view(B * T, C, H, W)
+
+        # forward
         ys = self(xs, zs)
+
+        # undo tensor to video batches.
         ys = ys.view(B, T, 3, H, W)
         ys = ys.permute(0, 2, 1, 3, 4)  # (B, C, T, H, W)
 

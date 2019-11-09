@@ -12,6 +12,22 @@ import util
 
 
 def load_model(model_path: Path, params_path: Path) -> nn.Module:
+    """
+    Load a pytorch module with trained weights.
+
+    Parameters
+    ----------
+    model_path : pathlib.Path
+        Path object of the model class pickle.
+
+    params_path : pathlib.Path
+        Path object of the model weight pickle.
+
+    Returns
+    -------
+    model : nn.Module
+        Trained model.
+    """
     model = torch.load(model_path, map_location="cpu")
     params = torch.load(params_path, map_location="cpu")
     model.load_state_dict(params)

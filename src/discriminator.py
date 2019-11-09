@@ -9,6 +9,18 @@ import util
 
 
 class Noise(nn.Module):
+    """
+    Adding noise layer.
+
+    Parameters
+    ----------
+    use_noise : bool
+        If true, this layer is activated.
+
+    sigma : float
+        Standard deviation of the input gaussian noise
+    """
+
     def __init__(self, use_noise: bool, sigma: float = 0.2):
         super(Noise, self).__init__()
         self.use_noise = use_noise
@@ -28,6 +40,27 @@ class Noise(nn.Module):
 
 
 class ImageDiscriminator(nn.Module):
+    """
+    The image discriminator.
+
+    Parameters
+    ----------
+    ch1 : int
+        Num channels for input geometric information image.
+
+    ch2 : int
+        Num channels for input color image.
+
+    use_noise : bool
+        A parameter for the noise layer
+
+    noise_sigma : float
+        A parameter for the noise layer
+
+    ndf : int
+        Standard number of the kernel filters
+    """
+
     def __init__(
         self,
         ch1: int,
@@ -70,7 +103,22 @@ class ImageDiscriminator(nn.Module):
 
         self.device = util.current_device()
 
-    def forward(self, xg: torch.Tensor, xc: torch.Tensor) -> torch.Tensor:
+    def forward(self, xg, xc):
+        """
+        Parameters
+        ----------
+        xg : torch.Tensor
+            The input geometric infomation image
+        xc : torch.Tensor
+            The input color image
+
+        Returns
+        -------
+        h : torch.Tensor
+            A feature map about the fidelity of input image pair.
+            The outputs are not probability values yet.
+            (C: 1, H: 4, W: 4)
+        """
         hg = self.conv_g(xg)
         hc = self.conv_c(xc)
         h = torch.cat([hc, hg], 1)
@@ -93,6 +141,27 @@ class ImageDiscriminator(nn.Module):
 
 
 class VideoDiscriminator(nn.Module):
+    """
+    The video discriminator.
+
+    Parameters
+    ----------
+    ch1 : int
+        Num channels for input geometric information video.
+
+    ch2 : int
+        Num channels for input color video.
+
+    use_noise : bool
+        A parameter for the noise layer
+
+    noise_sigma : float
+        A parameter for the noise layer
+
+    ndf : int
+        Standard number of the kernel filters
+    """
+
     def __init__(
         self,
         ch1: int,
@@ -139,6 +208,21 @@ class VideoDiscriminator(nn.Module):
         self.device = util.current_device()
 
     def forward(self, xg, xc):
+        """
+        Parameters
+        ----------
+        xg : torch.Tensor
+            The input geometric infomation video
+        xc : torch.Tensor
+            The input color video
+
+        Returns
+        -------
+        h : torch.Tensor
+            A feature map about the fidelity of input video pair.
+            The outputs are not probability values yet.
+            (C:1, T: 4, H: 4, W: 4)
+        """
         hg = self.conv_g(xg)
         hc = self.conv_c(xc)
         h = torch.cat([hc, hg], 1)

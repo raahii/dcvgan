@@ -109,18 +109,3 @@ class VideoDataset(Dataset):
             raise NotImplementedError
 
         return {"color": color_video, self.geometric_info: geo_video}
-
-
-def new_dataset(configs: Dict[str, Any]):
-    if configs["dataset"]["name"] not in ["mug", "isogd", "surreal"]:
-        raise NotImplementedError
-
-    return VideoDataset(
-        configs["dataset"]["name"],
-        Path(configs["dataset"]["path"]),
-        eval(f'preprocess_{configs["dataset"]["name"]}_dataset'),
-        configs["video_length"],
-        configs["image_size"],
-        configs["dataset"]["number_limit"],
-        geometric_info=configs["geometric_info"]["name"],
-    )

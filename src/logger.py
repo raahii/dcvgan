@@ -14,7 +14,7 @@ from tensorboardX import SummaryWriter
 
 class MetricType(enum.IntEnum):
     """
-    Enum represents metric type
+    Enum class for logging metric.
     """
 
     Integer = 1
@@ -25,7 +25,18 @@ class MetricType(enum.IntEnum):
 
 class Metric(object):
     """
-    Metric class for logger
+    Meric class for logging.
+
+    Parameters
+    ----------
+    mtype : MetricType
+        Metric type.
+
+    priority : int
+        Metric priority to determine display order.
+
+    tensorboard : bool
+        If true, the metric is logged into tensorboard too.
     """
 
     mtype_list: List[int] = list(map(int, MetricType))
@@ -43,7 +54,15 @@ class Metric(object):
 
 class Logger(object):
     """
-    Logger for watchting some metrics involving training
+    Original logger.
+
+    Parameters
+    ----------
+    out_path : pathlib.Path
+        Path object to write log outputs.
+
+    tb_path : pathlib.Path
+        Path object to save TensorBoard logging object.
     """
 
     def __init__(self, out_path: Path, tb_path: Path):
@@ -71,6 +90,17 @@ class Logger(object):
         self.indent = " " * 4
 
     def new_logging_module(self, name: str, log_file: Path) -> logging.Logger:
+        """
+        Returns base logging module with logging.Logger
+
+        Parameters
+        ----------
+        name : str
+            Logger identifier.
+
+        log_file : pathlib.Path
+            Path object to write log outputs.
+        """
         # specify format
         log_format: str = "[%(asctime)s] %(message)s"
         date_format: str = "%Y-%m-%d %H:%M:%S"
@@ -97,74 +127,7 @@ class Logger(object):
 
         return logger
 
-    def define(self, name: str, mtype: MetricType, priority=0, tensorboard=True):
-        """
-        register a new metric
-        """
-        metric: Metric = Metric(mtype, priority, tensorboard)
-        if mtype in [MetricType.Integer, MetricType.Float]:
-            metric.value = None
-        elif mtype == MetricType.Loss:
-            metric.value = []
-        elif mtype == MetricType.Time:
-            metric.value = 0
-            metric.params["start_time"] = time.time()
-        self.metrics[name] = metric
-
-        self.metrics = OrderedDict(
-            sorted(self.metrics.items(), key=lambda m: m[1].priority, reverse=True)
-        )
-
-    def metric_keys(self) -> List[str]:
-        """
-        return all registerd metrics
-        """
-        return list(self.metrics.keys())
-
-    def clear(self):
-        """
-        init registerd merics values
-        """
-        for _, metric in self.metrics.items():
-            if metric.mtype in [MetricType.Integer, MetricType.Float]:
-                metric.value = None
-            elif metric.mtype == MetricType.Loss:
-                metric.value = []
-
-    def update(self, name: str, value: Any):
-        """
-        add a new metric value
-        """
-        m = self.metrics[name]
-        if m.mtype in [MetricType.Integer, MetricType.Float]:
-            m.value = value
-        elif m.mtype == MetricType.Loss:
-            m.value.append(value)
-        elif m.mtype == MetricType.Time:
-            m.value = value - m.params["start_time"]
-
-    def print_header(self):
-        """
-        add the title of logging
-        """
-        log_string = ""
-        for name in self.metrics.keys():
-            log_string += "{:>15} ".format(name)
-        self.info(log_string)
-
-    def log(self, x_axis_metric: str = "iteration"):
-        self.update("elapsed_time", time.time())
-
-        # tensorboard
-        self.tf_log_scalars(x_axis_metric)
-
-        # console
-        self._log()
-
     def _log(self):
-        """
-        write logs to stdio and pre-defined file
-        """
         log_strings: List[str] = []
         for k, m in self.metrics.items():
             # console (or file ) logging
@@ -195,10 +158,108 @@ class Logger(object):
 
         self.info(log_string)
 
+    def log(self, x_axis_metric: str = "iteration"):
+        """
+        Print registerd metrics to console, file, tensorboard.
+
+        Parameters
+        ----------
+        x_axis_metric : str
+            Metric to be used as x-axis.
+        """
+        self.update("elapsed_time", time.time())
+
+        # tensorboard
+        self.tf_log_scalars(x_axis_metric)
+
+        # console
+        self._log()
+
+    def define(self, name: str, mtype: MetricType, priority=0, tensorboard=True):
+        """
+        Register a new metric.
+
+        Parameters
+        ----------
+        name : str
+            Metric name.
+
+        mtype : MetricType
+            Metric type (integer, float, loss, time).
+
+        priority : int
+            Metric priority.
+
+        tensorboard : bool
+            If true, the metric is logged into tensorboard too.
+        """
+        metric: Metric = Metric(mtype, priority, tensorboard)
+        if mtype in [MetricType.Integer, MetricType.Float]:
+            metric.value = None
+        elif mtype == MetricType.Loss:
+            metric.value = []
+        elif mtype == MetricType.Time:
+            metric.value = 0
+            metric.params["start_time"] = time.time()
+        self.metrics[name] = metric
+
+        self.metrics = OrderedDict(
+            sorted(self.metrics.items(), key=lambda m: m[1].priority, reverse=True)
+        )
+
+    def metric_keys(self) -> List[str]:
+        """
+        Return all registerd metrics.
+        """
+        return list(self.metrics.keys())
+
+    def clear(self):
+        """
+        Initialize all registerd metrics.
+        """
+        for _, metric in self.metrics.items():
+            if metric.mtype in [MetricType.Integer, MetricType.Float]:
+                metric.value = None
+            elif metric.mtype == MetricType.Loss:
+                metric.value = []
+
+    def update(self, name: str, value: Any):
+        """
+        Update or add new metric value.
+
+        Parameters
+        ----------
+        name : str
+            Metric name.
+
+        value : Any
+            Metric value.
+        """
+        m = self.metrics[name]
+        if m.mtype in [MetricType.Integer, MetricType.Float]:
+            m.value = value
+        elif m.mtype == MetricType.Loss:
+            m.value.append(value)
+        elif m.mtype == MetricType.Time:
+            m.value = value - m.params["start_time"]
+
+    def print_header(self):
+        """
+        Print header of training progress.
+        """
+        log_string = ""
+        for name in self.metrics.keys():
+            log_string += "{:>15} ".format(name)
+        self.info(log_string)
+
     def tf_log_scalars(self, x_axis_metric: str):
         """
-        plot loss to tensorboard
-        automatically only plot MetricType.Loss metrics
+        Add all registered metric values to TensorBoard.
+
+        Parameters
+        ----------
+        x_axis_metric : str
+            Metric to be used as x-axis.
         """
         if x_axis_metric not in self.metric_keys():
             raise Exception(f"No such metric: {x_axis_metric}")
@@ -223,25 +284,66 @@ class Logger(object):
 
             self.tf_writer.add_scalar(name, value, step)
 
-    def tf_log_histgram(self, var: np.ndarray, tag: str, step: int):
+    def tf_log_histgram(self, x: np.ndarray, tag: str, step: int):
         """
-        add a histgram data to tensorboard
+        Add histgram of input tensor to TensorBoard.
+
+        Parameters
+        ----------
+        x : np.ndarray
+            Input tensor.
+
+        tag : str
+            Data identifier.
+
+        step : int
+            Global step value to record.
         """
-        self.tf_writer.add_histogram(tag, var, step)
+        self.tf_writer.add_histogram(tag, x, step)
 
     def tf_log_image(self, x: np.ndarray, tag: str, step: int):
         """
-        add a image data to tensorboard
+        Add image to TensorBoard.
+
+        Parameters
+        ----------
+        x : np.ndarray
+            Input image (dtype: uint8, axis: (B, C, H, W), order: RGB).
+
+        tag : str
+            Data identifier.
+
+        step : int
+            Global step value to record.
         """
         self.tf_writer.add_image(tag, x, step)
 
     def tf_log_video(self, x: np.ndarray, tag: str, step: int):
         """
-        add video data to tensorboard
+        Add video as GIF image to TensorBoard.
+
+        Parameters
+        ----------
+        x : np.ndarray
+            Input video (dtype: uint8, axis: (B, T, C, H, W), order: RGB).
+
+        tag : str
+            Data identifier.
+
+        step : int
+            Global step value to record.
         """
         self.tf_writer.add_video(tag, x, fps=8, global_step=step)
 
     def tf_hyperparams(self, values: Dict[str, Any]):
+        """
+        Add hyper parameters to TensorBoard.
+
+        Parameters
+        ----------
+        values : Dict[str, Any]
+            Dict contains hyper parameters
+        """
         self.tf_writer.add_hparams(values, {})
 
     def info(self, msg: str, level=0):

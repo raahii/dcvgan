@@ -26,7 +26,7 @@ test:
 build:
 	docker build . -f docker/Dockerfile.cpu -t raahii/dcvgan:test
 
-ci:
+ci: build
 	docker run --volume ${PWD}:/home/user/dcvgan --rm raahii/dcvgan:test make test
 
 deploy:

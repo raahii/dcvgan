@@ -11,7 +11,7 @@ import yaml
 from torch.utils.data import DataLoader
 
 import util
-from dataset import VideoDataset, new_dataset
+from dataset import VideoDataset
 from discriminator import ImageDiscriminator, VideoDiscriminator
 from generator import ColorVideoGenerator, GeometricVideoGenerator
 from logger import Logger
@@ -20,21 +20,25 @@ from preprocess.mug import preprocess_mug_dataset
 from trainer import Trainer
 
 
-def worker_init_fn(worker_id: int):
+def _worker_init_fn(worker_id: int):
     random.seed(worker_id)
 
 
 def fix_seed(value: int):
+    """
+    Fix every random seed.
+
+    Parameters
+    ----------
+    value: int
+        Seed value.
+    """
     random.seed(value)
     np.random.seed(value)
     torch.manual_seed(value)
     torch.cuda.manual_seed_all(value)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = True
-
-
-def create_optimizer(m: nn.Module, lr: float, decay: float) -> optim.Adam:
-    return optim.Adam(m.parameters(), lr=lr, betas=(0.5, 0.999), weight_decay=decay)
 
 
 def main():
@@ -64,13 +68,20 @@ def main():
     logger.debug(f"directory {configs['log_dir']}", 1)
     logger.debug(f"tensorboard: {configs['tensorboard_dir']}", 1)
     logger.debug(f"geometric_info: {configs['geometric_info']}", 1)
-    logger.debug("interval:", 1)
-    logger.debug(f"log_interval: {configs['log_interval']}", 2)
-    logger.debug(f"snapshot_interval: {configs['snapshot_interval']}", 2)
-    logger.debug(f"evaluation_interval: {configs['evaluation_interval']}", 2)
+    logger.debug(f"log_interval: {configs['log_interval']}", 1)
+    logger.debug(f"snapshot_interval: {configs['snapshot_interval']}", 1)
+    logger.debug(f"evaluation_interval: {configs['evaluation_interval']}", 1)
 
     # prepare dataset
-    dataset = new_dataset(configs)
+    dataset = VideoDataset(
+        configs["dataset"]["name"],
+        Path(configs["dataset"]["path"]),
+        eval(f'preprocess_{configs["dataset"]["name"]}_dataset'),
+        configs["video_length"],
+        configs["image_size"],
+        configs["dataset"]["number_limit"],
+        geometric_info=configs["geometric_info"]["name"],
+    )
     dataloader = DataLoader(
         dataset,
         batch_size=configs["batchsize"],
@@ -78,7 +89,7 @@ def main():
         shuffle=True,
         drop_last=True,
         pin_memory=True,
-        worker_init_fn=worker_init_fn,
+        worker_init_fn=_worker_init_fn,
     )
     logger.debug("(dataset)")
     logger.debug(f"name: {dataset.name}", 1)
@@ -131,7 +142,12 @@ def main():
     # optimizers
     optimizers = {}
     for name, model in models.items():
-        optimizers[name] = create_optimizer(model, **configs[name]["optimizer"])
+        optimizers[name] = optim.Adam(
+            model.parameters(),
+            lr=configs[name]["optimizer"]["lr"],
+            betas=(0.5, 0.999),
+            weight_decay=configs[name]["optimizer"]["decay"],
+        )
 
     # start training
     trainer = Trainer(dataloader, logger, models, optimizers, configs)

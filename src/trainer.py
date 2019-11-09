@@ -67,7 +67,25 @@ class Trainer(object):
         self.epoch: int = 0
         self.save_classobj()
 
-    def compute_dis_loss(self, y_real, y_fake):
+    def compute_dis_loss(
+        self, y_real: torch.Tensor, y_fake: torch.Tensor
+    ) -> torch.Tensor:
+        """
+        Compute adversarial loss for the discriminator.
+
+        Parameters
+        ----------
+        y_real: torch.Tensor
+            Discriminator output against real samples
+
+        y_fake: torch.Tensor
+            Discriminator output against fake samples
+
+        Returns
+        -------
+        loss : torch.Tensor
+            Adversarial loss.
+        """
         ones = torch.ones_like(y_real, device=self.device)
         zeros = torch.zeros_like(y_fake, device=self.device)
 
@@ -76,7 +94,23 @@ class Trainer(object):
 
         return loss
 
-    def compute_gen_loss(self, y_fake_i, y_fake_v):
+    def compute_gen_loss(self, y_fake_i, y_fake_v) -> torch.Tensor:
+        """
+        Compute adversarial loss for the generator.
+
+        Parameters
+        ----------
+        y_fake_i: torch.Tensor
+            Output of the image discriminator.
+
+        y_fake_v: torch.Tensor
+            Output of the video discriminator.
+
+        Returns
+        -------
+        loss : torch.Tensor
+            Adversarial loss.
+        """
         ones_i = torch.ones_like(y_fake_i, device=self.device)
         ones_v = torch.ones_like(y_fake_v, device=self.device)
 
@@ -86,18 +120,38 @@ class Trainer(object):
         return loss
 
     def save_classobj(self):
+        """
+        Save nn.Module class object using torch.save
+        """
         for name, _model in self.models.items():
             model: nn.Module = copy.deepcopy(_model.cpu())
             torch.save(model, self.model_snapshots_path / f"{name}_model.pth")
 
     def save_params(self):
+        """
+        Save nn.Module class object using torch.save
+        """
         for name, model in self.models.items():
             torch.save(
                 model.state_dict(),
                 self.model_snapshots_path / f"{name}_params_{self.iteration:05d}.pth",
             )
 
-    def log_samples(self, ggen, cgen, iteration):
+    def log_samples(self, ggen: nn.Module, cgen: nn.Module, iteration: int):
+        """
+        Log generator samples into TensorBoard.
+
+        Parameters
+        ----------
+        ggen : nn.Module
+            The geometric information video generator.
+
+        cgen : nn.Module
+            The color video generator.
+
+        iteration : int
+            Iteration count.
+        """
         ggen.eval()
         cgen.eval()
 
@@ -115,7 +169,7 @@ class Trainer(object):
         x_fake = np.concatenate([xg_fake, xc_fake], axis=-1)  # concat
 
         # log fake samples (dtype: int, axis: (B, T, C, H, W))
-        x_fake: np.ndarray = x_fake.transpose(0, 2, 1, 3, 4)
+        x_fake = x_fake.transpose(0, 2, 1, 3, 4)
         self.logger.tf_log_video("fake_samples", x_fake, iteration)
 
         # real samples
@@ -128,7 +182,7 @@ class Trainer(object):
 
         # convert xg to np.ndarray: (dtype: int, axis: (B, C, T, H, W))
         xg_real = xg_real.data.cpu().numpy()
-        xg_real = util.normalize_geometric_info(xg_real, ggen.geometric_info)
+        xg_real = util.geometric_info_in_color_format(xg_real, ggen.geometric_info)
 
         # log histgram of real samples
         self.logger.tf_log_histgram(xg_real[:, 0], "geospace_real", iteration)
@@ -144,6 +198,18 @@ class Trainer(object):
         self.logger.tf_log_video("real_samples", x_real, iteration)
 
     def evaluate(self, ggen: GeometricVideoGenerator, cgen: ColorVideoGenerator):
+        """
+        Evaluate generated samples using evaluation metrics for GANs.
+        Currently supporing InceptionScore, Frechet Inception Distance.
+
+        Parameters
+        ----------
+        ggen : nn.Module
+            The geometric information video generator.
+
+        cgen : nn.Module
+            The color video generator.
+        """
         # directory contains all color videos (.mp4) of the dataset
         dataset_dir = Path(self.dataloader.dataset.root_path) / "color"
         if not (
@@ -186,6 +252,9 @@ class Trainer(object):
         ggen, cgen = ggen.to(self.device), cgen.to(self.device)
 
     def train(self):
+        """
+        Start training.
+        """
         # retrieve models and move them if necessary
         ggen, cgen = self.models["ggen"], self.models["cgen"]
         idis, vdis = self.models["idis"], self.models["vdis"]

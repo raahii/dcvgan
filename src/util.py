@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import Any, List, Tuple
 
 import cv2
 import numpy as np
@@ -14,7 +14,12 @@ from generator import ColorVideoGenerator, GeometricVideoGenerator
 
 def current_device() -> torch.device:
     """
-    return current device (gpu or cpu)
+    Return current device (gpu or cpu)
+
+    Returns
+    -------
+    device : torch.device
+        Current device.
     """
     if torch.cuda.is_available():
         return torch.device("cuda:0")
@@ -22,23 +27,26 @@ def current_device() -> torch.device:
         return torch.device("cpu")
 
 
-def images_to_numpy(tensor):
+def images_to_numpy(tensor: torch.Tensor) -> np.ndarray:
     """
-    convert pytorch tensor to numpy array
+    Convert pytorch images to numpy array.
+        1. move tensor to cpu
+        2. change axis order: (B, C, H, W) -> (B, H, W, C)
+        3. change value range from [-1.0, 1.0] -> [0, 255]
 
     Parameters
     ----------
-    tensor: torch or torch.cuda
-        pytorch images tensor
+    tensor : torch.Tensor
+        PyTorch tensor.
 
     Returns
     ---------
-    imgs: numpy.array
-        numpy images array
+    imgs : numpy.ndarray
+        Numpy array.
     """
 
-    imgs = tensor.data.cpu().numpy()
-    imgs = imgs.transpose(0, 2, 3, 1)  # (B, C, H, W) -> (B, H, W, C)
+    imgs = tensor.cpu().numpy()
+    imgs = imgs.transpose(0, 2, 3, 1)
     imgs = np.clip(imgs, -1, 1)
     imgs = (imgs + 1) / 2 * 255
     imgs = imgs.astype("uint8")
@@ -46,21 +54,23 @@ def images_to_numpy(tensor):
     return imgs
 
 
-def videos_to_numpy(tensor):
+def videos_to_numpy(tensor: torch.Tensor) -> np.ndarray:
     """
-    convert pytorch tensor to numpy array
+    Convert pytorch videos to numpy array.
+        1. move tensor to cpu
+        2. change value range from [-1.0, 1.0] -> [0, 255]
 
     Parameters
     ----------
-    tensor: torch or torch.cuda
-        pytorch tensor in the shape of (batchsize, channel, frames, width, height)
+    tensor : torch.Tensor
+        PyTorch tensor.
 
     Returns
     ---------
-    imgs: numpy.array
-        numpy array in the same shape of input tensor
+    imgs : numpy.ndarray
+        Numpy array.
     """
-    videos = tensor.data.cpu().numpy()
+    videos = tensor.cpu().numpy()
     videos = np.clip(videos, -1, 1)
     videos = (videos + 1) / 2 * 255
     videos = videos.astype("uint8")
@@ -68,26 +78,26 @@ def videos_to_numpy(tensor):
     return videos
 
 
-def make_video_grid(videos, rows, cols):
+def make_video_grid(videos: np.ndarray, rows: int, cols: int) -> np.ndarray:
     """
     Convert multiple videos to a single rows x cols grid video.
-    It must be len(videos) == rows*cols.
 
     Parameters
     ----------
-    videos: numpy.array
-        numpy array in the shape of (batchsize, channel, frames, height, width)
+    videos : numpy.ndarray
+        Input video (axis: (B, C, T, H, W)).
+        It must be len(videos) == rows*cols.
 
-    rows: int
-        num rows
+    rows : int
+        Number of rows
 
-    cols: int
-        num columns
+    cols : int
+        Number of columns
 
     Returns
     ----------
-    grid_video: numpy.array
-        numpy array in the shape of (1, channel, frames, height*rows, width*cols)
+    videos : numpy.ndarray
+        Grid video.
     """
 
     N, C, T, H, W = videos.shape
@@ -102,7 +112,20 @@ def make_video_grid(videos, rows, cols):
     return videos
 
 
-def calc_optical_flow(video: np.ndarray):
+def calc_optical_flow(video: np.ndarray) -> np.ndarray:
+    """
+    Calculate optical flow from a video.
+
+    Parameters
+    ----------
+    videos : numpy.ndarray
+        Input video (dtype: np.uint8, axis: (T, H, W, C), order: RGB).
+
+    Returns
+    ----------
+    flows : numpy.ndarray
+        Flow videos (dtype: np.float, axis: (T, H, W, C), shape: (T-1, H, W, 2))
+    """
     flows: List[np.ndarray] = []
 
     for i in range(len(video) - 1):
@@ -114,7 +137,21 @@ def calc_optical_flow(video: np.ndarray):
     return np.stack(flows)
 
 
-def visualize_optical_flow(flow_video: np.ndarray):
+def visualize_optical_flow(flow_video: np.ndarray) -> np.ndarray:
+    """
+    Convert optical flow videos to color videos
+
+    Parameters
+    ----------
+    flow_video : numpy.ndarray
+        Input video (dtype: numpy.float, axis: (T, H, W, C)).
+
+    Returns
+    ----------
+    color_video : numpy.ndarray
+        Optical Flow video which represented in color
+        (dtype: numpy.uint8, axis: (T, H, W, C), order: RGB).
+    """
     color_video = []
     shape = list(flow_video[0].shape)
     shape[-1] = 3
@@ -132,11 +169,11 @@ def visualize_optical_flow(flow_video: np.ndarray):
     return np.stack(color_video)
 
 
-def min_max_norm(x):
-    return (x - x.min()) / (x.max() - x.min())
-
-
 class DebugLayer(nn.Module):
+    """
+    PyTorch module to watch intermediate feature.
+    """
+
     def __init__(self):
         super(DebugLayer, self).__init__()
 
@@ -145,7 +182,10 @@ class DebugLayer(nn.Module):
         return x
 
 
-def init_weights(layer):
+def init_weights(layer: Any):
+    """
+    Initialize weights of Conv, BatchNorm layers using gaussian random values.
+    """
     if type(layer) in [nn.Conv2d, nn.ConvTranspose2d]:
         init.normal_(layer.weight.data, 0, 0.02)
         # init.orthogonal_(layer.weight.data)
@@ -154,11 +194,23 @@ def init_weights(layer):
         init.constant_(layer.bias.data, 0.0)
 
 
-def normalize_geometric_info(xg: np.ndarray, geometric_info: str) -> np.ndarray:
+def geometric_info_in_color_format(xg: np.ndarray, geometric_info: str) -> np.ndarray:
     """
-    Convert geometric infomation to color
-    # (B, C, T, H, W)
-    # [-1.0, 1.0]
+    Convert geometric infomation video can be used as color video
+
+    Parameters
+    ----------
+    xg : numpy.ndarray
+        Geometric information video (dtype: numpy.float, axis: (B, C, T, H, W)).
+
+    geometric_info : str
+        Geometric information type
+
+    Returns
+    ----------
+    xg : numpy.ndarray
+        Optical Flow video which represented in color format
+        (dtype: numpy.uint8, axis: (T, H, W, C), order: RGB).
     """
 
     if geometric_info == "depth":
@@ -187,9 +239,38 @@ def generate_samples(
     cgen: ColorVideoGenerator,
     num: int,
     batchsize: int = 20,
-    desc: str = "generating samples",
     verbose: bool = False,
+    desc: str = "generating samples",
 ) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Generate geometric info videos and color videos.
+
+    Parameters
+    ----------
+    ggen : GeometricVideoGenerator
+        The geometric information video generator.
+
+    cgen : ColorVideoGenerator
+        The color video generator.
+    
+    num : int
+        Number of videos to generate.
+
+    batchsize : int
+        Batchsize.
+
+    verbose : bool
+        If true, progress bar is displayed during generating videos using tqdm.tqdm.
+
+    desc : str
+        Message displayed in the progress bar.
+
+    Returns
+    ----------
+    xg : numpy.ndarray
+        Optical Flow video which represented in color format
+        (dtype: numpy.uint8, axis: (T, H, W, C), order: RGB).
+    """
 
     xc_batches: List[np.ndarray] = []
     xg_batches: List[np.ndarray] = []
@@ -207,7 +288,7 @@ def generate_samples(
 
     xg = np.concatenate(xg_batches)
     xg = xg[:num]
-    xg = normalize_geometric_info(xg, ggen.geometric_info)
+    xg = geometric_info_in_color_format(xg, ggen.geometric_info)
 
     xc = np.concatenate(xc_batches)
     xc = xc[:num]
