@@ -4,8 +4,6 @@ update-submodules:
 setup:
 	pip install -r requirements.txt
 
-docker-release:
-
 smi:
 	nvidia-smi -l 3
 
@@ -15,7 +13,9 @@ tb:
 format:
 	find . -name "*.py" | xargs isort
 	black -t py36 . --exclude "data" --exclude "result" --exclude ".mypy_cache"
-	mypy --ignore-missing-imports .
+
+mypy:
+	mypy --ignore-missing-imports src
 
 debug:
 	python src/train.py --config config/debug-isogd-flow.yml
@@ -24,9 +24,9 @@ test:
 	python -m unittest discover -s src/test -p 'test_*.py'
 
 build:
-	docker build . -f docker/Dockerfile.cpu -t raahii/dcvgan:test
+	docker build --cache-from docker.io/raahii/dcvgan:test -f docker/Dockerfile.cpu -t raahii/dcvgan:test .
 
-ci: build
+ci: format build
 	docker run --volume ${PWD}:/home/user/dcvgan --rm raahii/dcvgan:test make test
 
 deploy:

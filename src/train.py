@@ -8,10 +8,9 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import yaml
-from torch.utils.data import DataLoader
 
 import util
-from dataset import VideoDataset
+from dataset import VideoDataLoader, VideoDataset
 from discriminator import ImageDiscriminator, VideoDiscriminator
 from generator import ColorVideoGenerator, GeometricVideoGenerator
 from logger import Logger
@@ -82,7 +81,7 @@ def main():
         configs["dataset"]["number_limit"],
         geometric_info=configs["geometric_info"]["name"],
     )
-    dataloader = DataLoader(
+    dataloader = VideoDataLoader(
         dataset,
         batch_size=configs["batchsize"],
         num_workers=configs["dataset"]["n_workers"],

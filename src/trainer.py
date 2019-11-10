@@ -10,10 +10,10 @@ import numpy as np
 import torch
 import torch.optim as optim
 from torch import nn
-from torch.utils.data import DataLoader
 
 import dataio
 import util
+from dataset import VideoDataLoader
 from evaluation import compute_conv_features
 from evaluation import evaluate as eval_framework
 from generator import ColorVideoGenerator, GeometricVideoGenerator
@@ -23,7 +23,7 @@ from logger import Logger, MetricType
 class Trainer(object):
     def __init__(
         self,
-        dataloader: DataLoader,
+        dataloader: VideoDataLoader,
         logger: Logger,
         models: Dict[str, nn.Module],
         optimizers: Dict[str, Any],
@@ -44,7 +44,7 @@ class Trainer(object):
         self.eval_metrics = configs["evaluation"]["metrics"]
 
         # dataloader for logging real samples on tensorboard
-        self.dataloader_log = DataLoader(
+        self.dataloader_log = VideoDataLoader(
             self.dataloader.dataset,
             batch_size=self.num_log,
             num_workers=4,
@@ -54,8 +54,7 @@ class Trainer(object):
         )
 
         self.model_snapshots_path = self.logger.path / "models"
-        for p in [self.gen_samples_path, self.model_snapshots_path]:
-            p.mkdir(parents=True, exist_ok=True)
+        self.model_snapshots_path.mkdir(parents=True, exist_ok=True)
 
         self.adv_loss = nn.BCEWithLogitsLoss(reduction="sum")
 
@@ -136,16 +135,18 @@ class Trainer(object):
                 self.model_snapshots_path / f"{name}_params_{self.iteration:05d}.pth",
             )
 
-    def log_samples(self, ggen: nn.Module, cgen: nn.Module, iteration: int):
+    def log_samples(
+        self, ggen: GeometricVideoGenerator, cgen: ColorVideoGenerator, iteration: int
+    ):
         """
         Log generator samples into TensorBoard.
 
         Parameters
         ----------
-        ggen : nn.Module
+        ggen : GeometricVideoGenerator
             The geometric information video generator.
 
-        cgen : nn.Module
+        cgen : ColorVideoGenerator
             The color video generator.
 
         iteration : int

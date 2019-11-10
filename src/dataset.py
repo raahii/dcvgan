@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Tuple
 
 import numpy as np
-from torch.utils.data import Dataset
+from torch.utils.data import DataLoader, Dataset
 
 import dataio
 import util
@@ -14,7 +14,50 @@ from preprocess.surreal import preprocess_surreal_dataset
 PROCESSED_PATH = Path("data/processed")
 
 
+class VideoDataLoader(DataLoader):
+    """
+    Wrapper for torch.utils.data.DataLoader to change type of self.dataset.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super(VideoDataLoader, self).__init__(*args, **kwargs)
+        self.dataset: VideoDataset = args[0]
+
+
 class VideoDataset(Dataset):
+    """
+    Dataset for fixed sized video with extracting subsequence randomly.
+
+    Parameters
+    ----------
+    name : str
+        Dataset name.
+
+    dataset_path : pathlib.Path
+        Dataset root path
+
+    preprocess_func : Callable[[Path, Path, str, int, int, int], None]
+        Function to perform pre-processing to the dataset
+
+    video_length : int
+        Video length.
+
+    image_size : int
+        Image size. Assuming that width is equal to height.
+
+    number_limit : int
+        If set positive value, the number of datsaet samples is limited to the value.
+
+    geometric_info : int
+        Geometric information name.
+
+    mode : str
+        Dataset mode. Currently supporting 'train' only.
+
+    extension : str
+        Extension of the video frame.
+    """
+
     def __init__(
         self,
         name: str,
@@ -53,8 +96,8 @@ class VideoDataset(Dataset):
             video_path, n_frames = line.strip().split(" ")
             video_list.append((root_path / video_path, int(n_frames)))
 
-        self.dataset_path = dataset_path
-        self.root_path = root_path
+        self.dataset_path: Path = dataset_path
+        self.root_path: Path = root_path
         self.video_list = video_list
         self.video_length = video_length
         self.image_size = image_size
