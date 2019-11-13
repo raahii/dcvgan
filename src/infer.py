@@ -64,10 +64,13 @@ def main():
     # generate samples
     xg, xc = util.generate_samples(ggen, cgen, args.n_samples, args.batchsize)
 
+    # (B, C, T, H, W) -> (B, T, H, W, C)
+    xg, xc = xg.transpose(0, 2, 3, 4, 1), xc.transpose(0, 2, 3, 4, 1)
+
     # save samples
     color_dir = args.save_dir / "color"
-    geo_dir = args.save_dir / configs["geometric_info"]
     color_dir.mkdir(parents=True, exist_ok=True)
+    geo_dir = args.save_dir / configs["geometric_info"]["name"]
     geo_dir.mkdir(parents=True, exist_ok=True)
 
     Parallel(n_jobs=-1, verbose=0)(

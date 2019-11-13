@@ -16,7 +16,7 @@ def read_img(path: Union[str, Path], grayscale: bool = False) -> np.ndarray:
         Path object or file name to read image.
 
     grayscale : bool
-        If true, the image is saved in grayscale.
+        If true, the image is read as grayscale image.
 
     Returns
     -------

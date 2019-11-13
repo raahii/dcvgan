@@ -201,7 +201,7 @@ def geometric_info_in_color_format(xg: np.ndarray, geometric_info: str) -> np.nd
     Parameters
     ----------
     xg : numpy.ndarray
-        Geometric information video (dtype: numpy.float, axis: (B, C, T, H, W)).
+        Geometric information videos (dtype: numpy.float, axis: (B, C, T, H, W)).
 
     geometric_info : str
         Geometric information type
@@ -209,8 +209,8 @@ def geometric_info_in_color_format(xg: np.ndarray, geometric_info: str) -> np.nd
     Returns
     ----------
     xg : numpy.ndarray
-        Optical Flow video which represented in color format
-        (dtype: numpy.uint8, axis: (T, H, W, C), order: RGB).
+        Geometric information videos which represented in color format
+        (dtype: numpy.uint8, axis: (B, C, T, H, W), order: RGB).
     """
 
     if geometric_info == "depth":
@@ -252,7 +252,7 @@ def generate_samples(
 
     cgen : ColorVideoGenerator
         The color video generator.
-    
+
     num : int
         Number of videos to generate.
 
@@ -268,8 +268,11 @@ def generate_samples(
     Returns
     ----------
     xg : numpy.ndarray
-        Optical Flow video which represented in color format
-        (dtype: numpy.uint8, axis: (T, H, W, C), order: RGB).
+        Geometric infomation videos which represented in color format
+        (dtype: numpy.uint8, axis: (B, C, T, H, W)).
+
+    xc : numpy.ndarray
+        Color videos(dtype: numpy.uint8, axis: (B, C, T, H, W), order: RGB).
     """
 
     xc_batches: List[np.ndarray] = []
@@ -281,9 +284,9 @@ def generate_samples(
 
         xg = xg.cpu().numpy()
         xg = np.clip(xg, -1, 1)
-        xc = videos_to_numpy(xc)
-
         xg_batches.append(xg)
+
+        xc = videos_to_numpy(xc)
         xc_batches.append(xc)
 
     xg = np.concatenate(xg_batches)

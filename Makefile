@@ -32,5 +32,6 @@ ci: format build
 deploy:
 	rsync -auvz \
 	      --delete \
+	      --exclude-from=${HOME}/.rsyncignore \
 	      --exclude-from=.rsyncignore \
 	      $(shell ghq root)/github.com/raahii/dcvgan/ labo:~/study/dcvgan/
