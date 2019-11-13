@@ -23,8 +23,12 @@ log_samples_interval: 1600
 snapshot_interval:    1600
 evaluation_interval:  1600
 
-# training settings
-dis_update_ratio: 1 # number of D updates per every G update
+# loss
+loss: "adversarial-loss"
+
+# update ratio
+num_gen_update: 1
+num_dis_update: 1
 
 # dataset configs
 dataset:

@@ -1,5 +1,7 @@
 import argparse
+import json
 import random
+import sys
 from pathlib import Path
 from typing import Dict, List
 
@@ -14,6 +16,7 @@ from dataset import VideoDataLoader, VideoDataset
 from discriminator import ImageDiscriminator, VideoDiscriminator
 from generator import ColorVideoGenerator, GeometricVideoGenerator
 from logger import Logger
+from loss import AdversarialLoss, HingeLoss, Loss
 from preprocess.isogd import preprocess_isogd_dataset
 from preprocess.mug import preprocess_mug_dataset
 from trainer import Trainer
@@ -70,6 +73,17 @@ def main():
     logger.debug(f"log_interval: {configs['log_interval']}", 1)
     logger.debug(f"snapshot_interval: {configs['snapshot_interval']}", 1)
     logger.debug(f"evaluation_interval: {configs['evaluation_interval']}", 1)
+
+    # loss
+    loss: Loss
+    if configs["loss"] == "adversarial-loss":
+        loss = AdversarialLoss()
+    elif configs["loss"] == "hinge-loss":
+        loss = HingeLoss()
+    else:
+        logger.error(f"Specified loss is not supported {config['loss']}")
+        sys.exit(1)
+    logger.debug(f"loss: {configs['loss']}", 1)
 
     # prepare dataset
     dataset = VideoDataset(
@@ -139,17 +153,21 @@ def main():
         m.apply(util.init_weights)
 
     # optimizers
+    logger.debug("(optimizers)")
     optimizers = {}
     for name, model in models.items():
+        lr = configs[name]["optimizer"]["lr"]
+        betas = (0.5, 0.999)
+        decay = configs[name]["optimizer"]["decay"]
         optimizers[name] = optim.Adam(
-            model.parameters(),
-            lr=configs[name]["optimizer"]["lr"],
-            betas=(0.5, 0.999),
-            weight_decay=configs[name]["optimizer"]["decay"],
+            model.parameters(), lr=lr, betas=betas, weight_decay=decay
+        )
+        logger.debug(
+            json.dumps({name: {"betas": betas, "lr": lr, "weight_decay": decay}}), 1
         )
 
     # start training
-    trainer = Trainer(dataloader, logger, models, optimizers, configs)
+    trainer = Trainer(dataloader, logger, models, optimizers, loss, configs)
     trainer.train()
 
 

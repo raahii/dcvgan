@@ -18,6 +18,7 @@ from evaluation import compute_conv_features
 from evaluation import evaluate as eval_framework
 from generator import ColorVideoGenerator, GeometricVideoGenerator
 from logger import Logger, MetricType
+from loss import Loss
 
 
 class Trainer(object):
@@ -27,12 +28,14 @@ class Trainer(object):
         logger: Logger,
         models: Dict[str, nn.Module],
         optimizers: Dict[str, Any],
+        loss: Loss,
         configs: Dict[str, Any],
     ):
         self.dataloader = dataloader
         self.logger = logger
         self.models = models
         self.optimizers = optimizers
+        self.loss = loss
         self.configs = configs
         self.device = util.current_device()
         self.geometric_info = configs["geometric_info"]["name"]
@@ -64,58 +67,6 @@ class Trainer(object):
         self.iteration: int = 0
         self.epoch: int = 0
         self.save_classobj()
-
-    def compute_dis_loss(
-        self, y_real: torch.Tensor, y_fake: torch.Tensor
-    ) -> torch.Tensor:
-        """
-        Compute adversarial loss for the discriminator.
-
-        Parameters
-        ----------
-        y_real: torch.Tensor
-            Discriminator output against real samples
-
-        y_fake: torch.Tensor
-            Discriminator output against fake samples
-
-        Returns
-        -------
-        loss : torch.Tensor
-            Adversarial loss.
-        """
-        ones = torch.ones_like(y_real, device=self.device)
-        zeros = torch.zeros_like(y_fake, device=self.device)
-
-        loss = self.adv_loss(y_real, ones) / y_real.numel()
-        loss += self.adv_loss(y_fake, zeros) / y_fake.numel()
-
-        return loss
-
-    def compute_gen_loss(self, y_fake_i, y_fake_v) -> torch.Tensor:
-        """
-        Compute adversarial loss for the generator.
-
-        Parameters
-        ----------
-        y_fake_i: torch.Tensor
-            Output of the image discriminator.
-
-        y_fake_v: torch.Tensor
-            Output of the video discriminator.
-
-        Returns
-        -------
-        loss : torch.Tensor
-            Adversarial loss.
-        """
-        ones_i = torch.ones_like(y_fake_i, device=self.device)
-        ones_v = torch.ones_like(y_fake_v, device=self.device)
-
-        loss = self.adv_loss(y_fake_i, ones_i) / y_fake_i.numel()
-        loss += self.adv_loss(y_fake_v, ones_v) / y_fake_v.numel()
-
-        return loss
 
     def save_classobj(self):
         """
@@ -323,17 +274,24 @@ class Trainer(object):
                 y_fake_v = vdis(xg_fake, xc_fake)
 
                 # compute loss
-                loss_idis = self.compute_dis_loss(y_real_i, y_fake_i)
-                loss_vdis = self.compute_dis_loss(y_real_v, y_fake_v)
+                loss_idis = self.loss.compute_dis_loss(y_real_i, y_fake_i)
+                loss_vdis = self.loss.compute_dis_loss(y_real_v, y_fake_v)
+                loss_dis = loss_idis + loss_vdis
 
                 # update weights
-                loss_idis.backward(retain_graph=True)
-                loss_vdis.backward()
-                opt_idis.step()
-                opt_vdis.step()
+                if self.iteration % self.configs["num_gen_update"] == 0:
+                    loss_dis.backward()
+                    opt_idis.step()
+                    opt_vdis.step()
+                else:
+                    loss_dis.detach_()
 
                 self.logger.update("loss_idis", loss_idis.cpu().item())
                 self.logger.update("loss_vdis", loss_vdis.cpu().item())
+
+                # free grads
+                y_fake_i.detach()
+                y_fake_v.detach()
 
                 # --------------------
                 # phase generator
@@ -351,10 +309,10 @@ class Trainer(object):
                 y_fake_v = vdis(xg_fake, xc_fake)
 
                 # compute loss
-                loss_gen = self.compute_gen_loss(y_fake_i, y_fake_v)
+                loss_gen = self.loss.compute_gen_loss(y_fake_i, y_fake_v)
 
-                if self.iteration % self.configs["dis_update_ratio"] == 0:
-                    # update weights
+                # update weights
+                if self.iteration % self.configs["num_dis_update"] == 0:
                     loss_gen.backward()
                     opt_ggen.step()
                     opt_cgen.step()
@@ -363,9 +321,14 @@ class Trainer(object):
 
                 self.logger.update("loss_gen", loss_gen.cpu().item())
 
+                # free grads
+                y_real_i.detach()
+                y_real_v.detach()
+
                 # --------------------
                 # others
                 # --------------------
+
                 # snapshot models
                 if self.iteration % self.configs["snapshot_interval"] == 0:
                     self.save_params()

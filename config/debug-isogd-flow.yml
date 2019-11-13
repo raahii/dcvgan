@@ -19,12 +19,16 @@ geometric_info:
 
 # interval
 log_interval:         1
-log_samples_interval: 1
-snapshot_interval:    1
-evaluation_interval:  1
+log_samples_interval: 5
+snapshot_interval:    5
+evaluation_interval:  5
 
-# training settings
-dis_update_ratio: 1 # number of D updates per every G update
+# loss
+loss: "hinge-loss"
+
+# update ratio
+num_gen_update: 2
+num_dis_update: 1
 
 # dataset configs
 dataset:
@@ -57,7 +61,7 @@ cgen:
 
 idis:
   use_noise: True
-  noise_sigma: 0.1
+  noise_sigma: 0.2
   ndf: 64
   optimizer:
     lr: 0.0002
@@ -65,7 +69,7 @@ idis:
 
 vdis:
   use_noise: True
-  noise_sigma: 0.1
+  noise_sigma: 0.2
   ndf: 32
   optimizer:
     lr: 0.0002
