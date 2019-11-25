@@ -18,7 +18,7 @@ class Noise(nn.Module):
         If true, this layer is activated.
 
     sigma : float
-        Standard deviation of the input gaussian noise
+        Standard deviation of the input gaussian noise.
     """
 
     def __init__(self, use_noise: bool, sigma: float = 0.2):

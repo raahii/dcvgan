@@ -207,9 +207,7 @@ class DownBlock(nn.Module):
         self.main = nn.Sequential(*layers)
 
     def forward(self, x):
-        x = self.main(x)
-
-        return x
+        return self.main(x)
 
 
 class UpBlock(nn.Module):
@@ -246,9 +244,7 @@ class UpBlock(nn.Module):
         self.main = nn.Sequential(*layers)
 
     def forward(self, x):
-        x = self.main(x)
-
-        return x
+        return self.main(x)
 
 
 class Outconv(nn.Module):

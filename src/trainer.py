@@ -86,6 +86,27 @@ class Trainer(object):
                 self.model_snapshots_path / f"{name}_params_{self.iteration:05d}.pth",
             )
 
+    def log_hparams(self):
+        """
+        Save training configurations as hyperparameters to tensorboard.
+        """
+
+        def flat(item: Any, key: str) -> Dict[str, str]:
+            if type(item) != dict:
+                return {key: str(item)}
+
+            _dict = {}
+            for k, v in item.items():
+                if key == "":
+                    _dict = dict(_dict, **flat(v, k))
+                else:
+                    _dict = dict(_dict, **flat(v, key + "/" + k))
+
+            return _dict
+
+        _configs = flat(self.configs, "")
+        self.logger.tf_log_hparams(_configs)
+
     def log_samples(
         self, ggen: GeometricVideoGenerator, cgen: ColorVideoGenerator, iteration: int
     ):
@@ -223,6 +244,9 @@ class Trainer(object):
         self.logger.define("loss_vdis", MetricType.Loss)
         for m in self.configs["evaluation"]["metrics"]:
             self.logger.define(m, MetricType.Float)
+
+        # log configurations
+        self.log_hparams()
 
         # training loop
         self.logger.debug("(trainer)")

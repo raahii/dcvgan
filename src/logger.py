@@ -335,7 +335,7 @@ class Logger(object):
         """
         self.tf_writer.add_video(tag, x, fps=8, global_step=step)
 
-    def tf_hyperparams(self, values: Dict[str, Any]):
+    def tf_log_hparams(self, values: Dict[str, Any]):
         """
         Add hyper parameters to TensorBoard.
 

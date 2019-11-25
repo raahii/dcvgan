@@ -71,6 +71,7 @@ def main():
     logger.debug(f"tensorboard: {configs['tensorboard_dir']}", 1)
     logger.debug(f"geometric_info: {configs['geometric_info']}", 1)
     logger.debug(f"log_interval: {configs['log_interval']}", 1)
+    logger.debug(f"log_samples_interval: {configs['log_samples_interval']}", 1)
     logger.debug(f"snapshot_interval: {configs['snapshot_interval']}", 1)
     logger.debug(f"evaluation_interval: {configs['evaluation_interval']}", 1)
 

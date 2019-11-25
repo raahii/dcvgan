@@ -275,6 +275,9 @@ def generate_samples(
         Color videos(dtype: numpy.uint8, axis: (B, C, T, H, W), order: RGB).
     """
 
+    ggen.eval()
+    cgen.eval()
+
     xc_batches: List[np.ndarray] = []
     xg_batches: List[np.ndarray] = []
     for s in tqdm(range(0, num, batchsize), desc=desc, disable=not verbose):
