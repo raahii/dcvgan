@@ -61,30 +61,27 @@ def main():
         args.result_dir / "models" / f"cgen_params_{args.iteration:05d}.pth",
     )
 
-    # generate samples
-    xg, xc = util.generate_samples(ggen, cgen, args.n_samples, args.batchsize)
-
-    # (B, C, T, H, W) -> (B, T, H, W, C)
-    xg, xc = xg.transpose(0, 2, 3, 4, 1), xc.transpose(0, 2, 3, 4, 1)
-
-    # save samples
+    # make directories
     color_dir = args.save_dir / "color"
     color_dir.mkdir(parents=True, exist_ok=True)
     geo_dir = args.save_dir / configs["geometric_info"]["name"]
     geo_dir.mkdir(parents=True, exist_ok=True)
 
-    Parallel(n_jobs=-1, verbose=0)(
-        [
-            delayed(dataio.write_video)(d, geo_dir / "{:06d}.mp4".format(i))
-            for i, d in enumerate(xg)
-        ]
-    )
-    Parallel(n_jobs=-1, verbose=0)(
-        [
-            delayed(dataio.write_video)(c, color_dir / "{:06d}.mp4".format(i))
-            for i, c in enumerate(xc)
-        ]
-    )
+    # generate samples
+    for offset in tqdm(range(0, args.n_samples, args.batchsize)):
+        xg, xc = util.generate_samples(
+            ggen, cgen, args.batchsize, args.batchsize, verbose=False
+        )
+
+        # (B, C, T, H, W) -> (B, T, H, W, C)
+        xg, xc = xg.transpose(0, 2, 3, 4, 1), xc.transpose(0, 2, 3, 4, 1)
+
+        dataio.write_videos_pararell(
+            xg, [geo_dir / "{:06d}.mp4".format(offset + i) for i in range(len(xg))]
+        )
+        dataio.write_videos_pararell(
+            xc, [color_dir / "{:06d}.mp4".format(offset + i) for i in range(len(xc))]
+        )
 
 
 if __name__ == "__main__":

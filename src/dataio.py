@@ -1,9 +1,10 @@
 from pathlib import Path
-from typing import Tuple, Union
+from typing import List, Tuple, Union
 
 import cv2
 import numpy as np
 import skvideo.io
+from joblib import Parallel, delayed
 
 
 def read_img(path: Union[str, Path], grayscale: bool = False) -> np.ndarray:
@@ -123,7 +124,36 @@ def read_video(path: Path) -> np.ndarray:
     return video
 
 
-def write_video(video: np.ndarray, path: Path) -> None:
+def read_videos_pararell(
+    paths: List[Path], n_jobs: int = 8, verbose: int = 0
+) -> np.ndarray:
+    """
+    Write video batches concurrently.
+
+    Parameters
+    ----------
+    path : List[pathlib.Path]
+        List of path objects.
+
+    n_jobs : int
+        Number of workers (thread/process).
+
+    verbose : int
+        Verbose level of joblib.Parallel.
+
+    Returns
+    -------
+    videos : numpy.ndarray
+        Read video (dtype: np.uint8, axis: (N, T, H, W, C), order: RGB).
+    """
+    videos = Parallel(n_jobs=n_jobs, verbose=verbose)(
+        [delayed(read_video)(p) for p in paths]
+    )
+
+    return np.stack(videos)
+
+
+def write_video(video: np.ndarray, path: Path, fps: int = 16) -> None:
     """
     Save a video using scikit-video(ffmpeg).
 
@@ -134,9 +164,46 @@ def write_video(video: np.ndarray, path: Path) -> None:
 
     path : pathlib.Path
         Path object to save video
+
+    fps : int
+        Frame rate of the output video
     """
-    writer = skvideo.io.FFmpegWriter(str(path))
+    writer = skvideo.io.FFmpegWriter(str(path), inputdict={"-r": str(fps)})
 
     for frame in video:
         writer.writeFrame(frame)
     writer.close()
+
+
+def write_videos_pararell(
+    videos: List[np.ndarray],
+    paths: List[Path],
+    fps: int = 16,
+    n_jobs: int = 8,
+    verbose: int = 0,
+) -> None:
+    """
+    Write video batches concurrently.
+
+    Parameters
+    ----------
+    videos : np.ndarray
+        Video batch to save (dtype: uint8, axis: (N, T, H, W, C), order: RGB).
+
+    paths : List[pathlib.Path]
+        List of path objects to write video.
+
+    fps : int
+        Frame rate of the output video
+
+    n_jobs : int
+        Number of workers (thread/process).
+
+    verbose : int
+        Verbose level of joblib.Parallel.
+    """
+    Parallel(n_jobs=n_jobs, verbose=verbose)(
+        [delayed(write_video)(v, p, fps=fps) for v, p in zip(videos, paths)]
+    )
+
+    return np.stack(videos)
