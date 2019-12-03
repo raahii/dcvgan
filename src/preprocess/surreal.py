@@ -1,55 +1,22 @@
-import re
 import shutil
+import sys
+import tempfile
 from pathlib import Path
+from typing import Dict, List, Optional
 
+import cv2
+import matplotlib.pyplot as plt
 import numpy as np
+import scipy.io
 import skvideo.io
 from joblib import Parallel, delayed
 
+import context
 import dataio
 import util
 
-segm_part_colors = np.asarray(
-    [
-        [0.4500, 0.5470, 0.6410],
-        [0.8500, 0.3250, 0.0980],
-        [0.9290, 0.6940, 0.1250],
-        [0.4940, 0.1840, 0.3560],
-        [0.4660, 0.6740, 0.1880],
-        [0.3010, 0.7450, 0.9330],
-        [0.5142, 0.7695, 0.7258],
-        [0.9300, 0.8644, 0.4048],
-        [0.6929, 0.6784, 0.7951],
-        [0.6154, 0.7668, 0.4158],
-        [0.4668, 0.6455, 0.7695],
-        [0.9227, 0.6565, 0.3574],
-        [0.6528, 0.8096, 0.3829],
-        [0.6856, 0.4668, 0.6893],
-        [0.7914, 0.7914, 0.7914],
-        [0.7440, 0.8571, 0.7185],
-        [0.9191, 0.7476, 0.8352],
-        [0.9300, 0.9300, 0.6528],
-        [0.3686, 0.3098, 0.6353],
-        [0.6196, 0.0039, 0.2588],
-        [0.9539, 0.8295, 0.6562],
-        [0.9955, 0.8227, 0.4828],
-        [0.1974, 0.5129, 0.7403],
-        [0.5978, 0.8408, 0.6445],
-        [0.8877, 0.6154, 0.5391],
-        [0.6206, 0.2239, 0.3094],
-    ]
-)
-# segm_part_colors = (segm_part_colors * 255).astype(np.uint8)
-
-
-def make_segmentation_video(video):
-    T, H, W = video.shape
-    N = len(segm_part_colors)
-    segm_video = np.zeros((T, H, W, 3), dtype=np.uint8)
-    for i in range(N):
-        segm_video[video == i] = segm_part_colors[i]
-
-    return segm_video
+HEIGHT = 240
+WIDTH = 360
 
 
 def preprocess_surreal_dataset(
@@ -59,172 +26,63 @@ def preprocess_surreal_dataset(
     length: int,
     img_size: int,
     n_jobs: int = -1,
-):
+) -> None:
     """
-    Preprocessing function for SURREAL Dataset
-    https://www.di.ens.fr/willow/research/surreal/data/
+    Preprocessing function for SURREAL dataset.
+    link: https://www.di.ens.fr/willow/research/surreal/data/
     """
-
-    frame_name_regex = re.compile(r"([0-9]+)_([0-9]+)_[a-z]([0-9]+).*")
-
-    def frame_number(name):
-        """
-        Regex to sort files
-        """
-        match = re.search(frame_name_regex, str(name))
-        video_number = match.group(1) + match.group(2) + match.group(3)
-
-        return video_number
+    # <root>/data/cmu/
+    # -------------- train/
+    # -------------- val/
+    # -------------- test/
+    # ------------------ run0/
+    # ------------------ run1/
+    # ------------------ run2/
+    # ---------------------- <sequenceName>/ #e.g. 01_01
+    # --------------------------- <sequenceName>_c%04d.mp4
+    # --------------------------- <sequenceName>_c%04d_depth.mat
 
     # collect all video files
-    video_paths, depth_paths = [], []
-    segm_paths, info_paths = [], []
+    videos: Dict[str, Dict[str, Path]] = {}
 
-    video_folders = list((dataset_path / mode).glob("run*"))
-    for folder in reversed(video_folders):
-        _video_paths, _depth_paths = [], []
-        _segm_paths, _info_paths = [], []
-
-        for p in folder.iterdir():
-            if not p.is_dir():
+    video_sets = list(sorted((dataset_path / mode).glob("run*")))
+    for _set in video_sets:
+        for seq_path in _set.iterdir():
+            if not seq_path.is_dir() or "ung_" in seq_path.name:
                 continue
 
-            if "ung_" in p.name:
-                continue
+            for color_video in sorted(seq_path.glob("*.mp4")):
+                seq_id = color_video.stem
+                _id = f"{_set.name}-{seq_id}"
+                video = {
+                    "color": color_video,
+                    "depth": seq_path / f"{seq_id}_depth.mat",
+                    "segm": seq_path / f"{seq_id}_segm.mat",
+                    "info": seq_path / f"{seq_id}_info.mat",
+                }
 
-            _video_paths.extend(list(p.glob("*.mp4")))
-            _depth_paths.extend(list(p.glob("*_depth.mat")))
-            _segm_paths.extend(list(p.glob("*_segm.mat")))
-            _info_paths.extend(list(p.glob("*_info.mat")))
+                # check all files exist
+                for k, v in video.items():
+                    if not v.exists():
+                        print(
+                            f"skipped {_id}: '{k}' is not found ({v}).", file=sys.stderr
+                        )
+                        continue
 
-        # sort by name
-        video_paths.extend(sorted(_video_paths, key=frame_number))
-        depth_paths.extend(sorted(_depth_paths, key=frame_number))
-        segm_paths.extend(sorted(_segm_paths, key=frame_number))
-        info_paths.extend(sorted(_info_paths, key=frame_number))
+                videos[_id] = video
+    print(f"collected {len(videos)} videos.")
 
-    def _preprocess(paths, save_path, length, img_size, segm_part_colors):
-        try:
-            video_path, depth_path, segm_path, info_path = paths
-            for p in paths:
-                if not p.exists():
-                    print("Sample Not found, skipped. {}".format(p.parents[0]))
-                    return
-
-            # read all videos
-            color_video = dataio.read_video(video_path)
-            depth_video = dataio.read_depth_mat(depth_path)
-            segm_video = dataio.read_segm_mat(segm_path)
-            joints = dataio.read_joints_mat(info_path)  # (n_frames, n_points, 2)
-
-            if len(color_video) < 16:
-                print("skipped: ", video_path)
-                return
-
-            if len(color_video) != len(depth_video) or len(color_video) != len(
-                segm_video
-            ):
-                print("skipped: ", video_path)
-                return
-
-            # output path
-            id_string = video_path.name[0:-4]  # without extension
-            name = "{}_{}".format(video_path.parents[1].name, id_string)
-            out_path = save_path / name
-            out_path.mkdir(parents=True, exist_ok=True)
-
-            # compute mean center points of human bbox from joints to crop video frames
-            # TODO: make pose video
-            center_points = []
-            for f_joints in joints:
-                bottom_left = np.amin(f_joints, axis=0)
-                top_right = np.amax(f_joints, axis=0)
-                center = (top_right - bottom_left) / 2.0
-                center_points.append(center)
-            center_point = np.array(center_points).mean(axis=0)
-
-            T, H, W, C = color_video.shape
-            cx = center_point[0]
-            if cx + H > W:
-                lx = W - H
-            elif cx - H < 0:
-                lx = 0
-            else:
-                lx = cx - H // 2
-
-            # color
-
-            # crop
-            color_video = color_video[:, :, lx : lx + H]
-
-            # resize
-            color_video = [imresize(img, (img_size, img_size)) for img in color_video]
-            color_video = np.stack(color_video)
-            np.savez_compressed(str(out_path / "color.npz"), data=color_video)
-
-            # save
-            # dataio.save_video_as_images(color_video, save_path/name/'color')
-            dataio.write_video(color_video, save_path / "color" / (name + ".mp4"))
-
-            # depth
-
-            # crop
-            depth_video = depth_video[:, :, lx : lx + H]
-
-            # resize
-            depth_video = [
-                imresize(img, (img_size, img_size), "nearest") for img in depth_video
-            ]
-            depth_video = np.stack(depth_video)
-
-            # limit value range of depth video
-            # fg_values = depth_video[depth_video!=10000000000.0]
-            # depth_video_vis = np.clip(depth_video, fg_values.min(), fg_values.max())
-            # depth_video_vis = utils.min_max_norm(depth_video) * 255.
-            # depth_video_vis = depth_video_vis.astype(np.uint8)
-            depth_video = np.clip(depth_video, 0, 15.0)
-            # dataio.write_video(depth_video_vis, save_path/'depth'/(name+".mp4"))
-            np.savez_compressed(str(out_path / "depth.npz"), data=depth_video)
-
-            # semantic segmentation
-
-            # crop
-            segm_video = segm_video[:, :, lx : lx + H]
-
-            # resize
-            segm_video = [
-                imresize(img, (img_size, img_size), "nearest") for img in segm_video
-            ]
-            segm_video = np.stack(segm_video)
-            segm_video = np.eye(len(segm_part_colors))[segm_video]
-            np.savez_compressed(str(out_path / "segm.npz"), data=segm_video)
-
-            # give region color to segmentation video
-            # segm_video_vis = make_segmentation_video(segm_video) * 255
-            # dataio.save_video_as_images(segm_video_vis, save_path/name/'segm')
-
-            return [name, T]
-        except Exception:
-            import traceback
-
-            traceback.print_exc()
-            print(video_path)
-            return
+    # prepare processing output directories
+    save_path.mkdir(exist_ok=True)
+    (save_path / "color").mkdir(exist_ok=True)
+    (save_path / "depth").mkdir(exist_ok=True)
+    (save_path / "segm").mkdir(exist_ok=True)
 
     # perform preprocess with multi threads
-    (save_path / "color").mkdir(parents=True, exist_ok=True)
-    (save_path / "depth").mkdir(parents=True, exist_ok=True)
-    (save_path / "segm").mkdir(parents=True, exist_ok=True)
-    (save_path / "pose").mkdir(parents=True, exist_ok=True)
-
-    # https://github.com/gulvarol/surreal/blob/8af8ae195e6b4bb39a0fb64524a15a434ea620f6/datageneration/main_part1.py#L34
-    # pose_connections = np.asarray([ ])
-
-    print(len(video_paths), "samples found")
     video_infos = Parallel(n_jobs=n_jobs, verbose=3)(
         [
-            delayed(_preprocess)(paths, save_path, length, img_size, segm_part_colors)
-            for paths in zip(video_paths, depth_paths, segm_paths, info_paths)
+            delayed(_preprocess)(name, video, save_path, length, img_size)
+            for name, video in videos.items()
         ]
     )
 
@@ -236,3 +94,196 @@ def preprocess_surreal_dataset(
             f.write(
                 "{} {}\n".format(*info)
             )  # color_video, depth_video, segm_video, n_frames
+
+
+def _preprocess(
+    name: str, video: np.ndarray, save_path: Path, length: int, img_size: int
+) -> Optional[List[str]]:
+
+    # read all videos
+    color_video = dataio.read_video(video["color"])  # (T, H, W, C)
+    depth_video = _read_depth_mat(video["depth"])  # (T, H, W)
+    segm_video = _read_segm_mat(video["segm"])  # (T, H, W)
+    joints = _read_joints2d(video["info"])  # (T, N, 2)
+
+    if len(color_video) < 16:
+        print(f"length of color, depth, segm, joints are not matched. {name} skipped.")
+        return None
+
+    if (
+        len(color_video) != len(depth_video)
+        or len(color_video) != len(segm_video)
+        or len(color_video) != len(joints)
+    ):
+        print(f"length of color, depth, segm, joints are not matched. {name} skipped.")
+        return None
+
+    # if output path of processed video exists, skip it.
+    out_path = save_path / name
+    if out_path.exists():
+        return None
+
+    # determine crop region from human bone points
+    xmin, xmax = joints[0].min(), joints[0].max()
+    xmid = int(xmax + xmin / 2)
+    xs = xmid - HEIGHT // 2
+    xs = min(max(0, xs), WIDTH - HEIGHT)
+    xe = xs + HEIGHT
+
+    # crop video and resize
+    resize_to = (img_size, img_size)
+    color_video = color_video[:, :, xs:xe]
+    color_video = dataio.resize_video(color_video, resize_to, "cubic")
+    depth_video = depth_video[:, :, xs:xe]
+    depth_video = dataio.resize_video(depth_video, resize_to, "nearest")
+    segm_video = segm_video[:, :, xs:xe]
+    segm_video = dataio.resize_video(segm_video, resize_to, "nearest")
+
+    # save under a temporary directory once.
+    temp_path = Path(tempfile.mkdtemp())
+    T, H, W = depth_video.shape
+
+    # save color video
+    dataio.save_video_as_images(color_video, temp_path / "color")
+
+    # save depth video
+    # dataio.save_video_as_images(depth_video, temp_path / "depth", grayscale=True)
+    np.save(str(temp_path / "depth"), depth_video)
+
+    # save segmentation video
+    n_segm_parts = 25
+    segm_video_one_hot = np.eye(n_segm_parts)[segm_video]
+    np.save(str(temp_path / "segm"), segm_video_one_hot)
+
+    shutil.move(str(temp_path), str(out_path))
+
+    # save to look
+    p = (save_path / "color" / name).with_suffix(".mp4")
+    dataio.write_video(color_video, p, fps=20)
+
+    p = (save_path / "depth" / name).with_suffix(".mp4")
+    depth_video = np.stack([_convert_depth_to_image(d) for d in depth_video])
+    dataio.write_video(depth_video, p, fps=20)
+
+    p = (save_path / "segm" / name).with_suffix(".mp4")
+    _segm_video = np.zeros((T, H, W, 3), dtype=np.uint8)
+    for i in range(n_segm_parts):
+        _segm_video[segm_video == i] = (util.segm_color(i) * 255).astype(np.uint8)
+    dataio.write_video(_segm_video, p, fps=20)
+
+    return [name, T]
+
+
+def _read_depth_mat(path: Path) -> np.ndarray:
+    """
+    Read depth video in the SURREAL dataset.
+
+    Parameters
+    ----------
+    path : pathlib.Path
+        Path object of the depth mat file
+
+    Returns
+    -------
+    depth_video : numpy.ndarray
+        Read depth video (dtype: float32, shape: (240, 320), axis: (H, W), min: 0, max: 1e10).
+    """
+    data_dict = scipy.io.loadmat(str(path))
+    # data_dict.keys(): dict_keys(['depth_1', 'depth_2', ...])
+
+    depth_imgs: List[np.ndarray] = []
+    i = 1
+    while True:
+        key = f"depth_{i}"
+        if key not in data_dict:
+            break
+
+        depth_imgs.append(data_dict[key])
+        i += 1
+
+    return np.stack(depth_imgs)
+
+
+def _read_segm_mat(path: Path) -> np.ndarray:
+    """
+    Read segmentation video in the SURREAL dataset.
+
+    Parameters
+    ----------
+    path : pathlib.Path
+        Path object of the segmentation mat file
+
+    Returns
+    -------
+    segm_video : numpy.ndarray
+        Read segmentation video (dtype: uint8, shape: (240, 320), axis: (H, W), min: 0, max: 24).
+    """
+    data_dict = scipy.io.loadmat(str(path))
+    # data_dict.keys(): dict_keys(['segm_1', 'segm_2', ...])
+
+    segm_imgs: List[np.ndarray] = []
+    i = 1
+    while True:
+        key = f"segm_{i}"
+        if key not in data_dict:
+            break
+
+        segm_imgs.append(data_dict[key])
+        i += 1
+
+    return np.stack(segm_imgs)
+
+
+def _read_joints2d(path: Path) -> np.ndarray:
+    """
+    Read joints2d from info.mat in the SURREAL dataset.
+
+    Parameters
+    ----------
+    path : pathlib.Path
+        Path object of the video information mat file
+
+    Returns
+    -------
+    joints2d : numpy.ndarray
+        Read human bone points for each time frame
+        (dtype: uint8, shape: (240, 320), axis: (H, W), min: 0, max: 24).
+    """
+    data_dict = scipy.io.loadmat(str(path))
+    joints2d = data_dict["joints2D"]
+    joints2d = joints2d.transpose(2, 1, 0)
+
+    return joints2d
+
+
+def depth_color(v):
+    name = "hot"
+    cmap = plt.get_cmap(name)
+    return list(map(lambda x: int(x * 255), cmap(v)[:3]))
+
+
+def _convert_depth_to_image(depth: np.ndarray):
+    BACKGROUND, BACKGROUND_COLOR = 1e10, 130
+    human_mask = np.where(depth < BACKGROUND)
+    human_depth = depth[human_mask]
+
+    H, W = depth.shape
+    depth_img = np.ones((H, W, 3), dtype=np.uint8) * BACKGROUND_COLOR
+
+    if len(human_depth) == 0:
+        return depth_img
+
+    ma, mi = human_depth.max(), human_depth.min()
+    human_depth = (human_depth - mi) / (ma - mi)
+    human_depth = (human_depth * 255).astype(np.uint8)
+    human_depth = np.array([depth_color(v) for v in human_depth], dtype=np.uint8)
+
+    depth_img[human_mask] = human_depth
+
+    return depth_img
+
+
+if __name__ == "__main__":
+    preprocess_surreal_dataset(
+        Path("data/raw/surreal"), Path("data/processed/surreal"), "train", -1, 64, -1
+    )
