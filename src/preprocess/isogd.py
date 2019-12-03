@@ -54,7 +54,7 @@ def preprocess_isogd_dataset(
 ):
     """
     Preprocessing function for Chalearn LAP IsoGD Database
-    http://www.cbsr.ia.ac.cn/users/jwan/database/isogd.html
+    link: http://www.cbsr.ia.ac.cn/users/jwan/database/isogd.html
     """
     # read samples in 'train'
     with open(dataset_path / f"{mode}_list.txt") as f:
@@ -96,17 +96,11 @@ def preprocess_isogd_dataset(
         flow_video = flow_video[:, :, left_x : left_x + H]
 
         # resize
-        color_video = [
-            dataio.resize_img(img, (img_size, img_size)) for img in color_video
-        ]
-        depth_video = [
-            dataio.resize_img(img, (img_size, img_size), "nearest")
-            for img in depth_video
-        ]
-        flow_video = [
-            dataio.resize_img(img, (img_size, img_size), "nearest")
-            for img in flow_video
-        ]
+        resize_to = (img_size, img_size)
+        color_video = dataio.resize_video(img, resize_to)
+        depth_video = dataio.resize_video(img, resize_to, "nearest")
+        flow_video = dataio.resize_vide(img, resize_to, "nearest")
+
         color_video = np.stack(color_video)
         depth_video = np.stack(depth_video)
         depth_video = depth_video[..., 0]  # save as grayscale image
