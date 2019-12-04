@@ -1,0 +1,80 @@
+# experiment configs
+experiment_name: "surreal-depth"
+
+# basic configs
+batchsize: 100
+n_epochs: 200
+seed: 15
+
+video_length: 16
+image_size: 64
+
+tensorboard_dir: "result/surreal/runs"
+log_dir: "result/surreal"
+
+# geometric information type
+geometric_info:
+  name: "depth"
+  channel: 1
+
+# interval
+log_interval:         160
+log_samples_interval: 1600
+snapshot_interval:    1600
+evaluation_interval:  1600
+
+# loss
+loss: "adversarial-loss"
+
+# update ratio
+num_gen_update: 1
+num_dis_update: 1
+
+# dataset configs
+dataset:
+  name: "surreal"
+  path: "data/raw/surreal"
+  n_workers: 1
+  number_limit: -1
+
+# model evaluation during training
+evaluation:
+  batchsize: 50
+  num_samples: 10000
+  metrics: ["is", "fid"]
+
+# model configs
+ggen:
+  dim_z_content: 40
+  dim_z_motion: 10
+  ngf: 64
+
+  optimizer:
+    lr: 0.0002
+    decay: 0.00001
+
+cgen:
+  dim_z_color: 10
+  ngf: 64
+
+  optimizer:
+    lr: 0.0002
+    decay: 0.00001
+
+idis:
+  use_noise: True
+  noise_sigma: 0.2
+  ndf: 64
+
+  optimizer:
+    lr: 0.0002
+    decay: 0.00001
+
+vdis:
+  use_noise: True
+  noise_sigma: 0.2
+  ndf: 64
+
+  optimizer:
+    lr: 0.0002
+    decay: 0.00001

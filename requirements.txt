@@ -6,6 +6,7 @@ tqdm
 pyyaml
 colorlog
 tqdm
+scikit-learn
 
 opencv-python
 scikit-video

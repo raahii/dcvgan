@@ -11,7 +11,6 @@ import scipy.io
 import skvideo.io
 from joblib import Parallel, delayed
 
-import context
 import dataio
 import util
 
@@ -62,14 +61,18 @@ def preprocess_surreal_dataset(
                 }
 
                 # check all files exist
+                ok = True
                 for k, v in video.items():
                     if not v.exists():
-                        print(
-                            f"skipped {_id}: '{k}' is not found ({v}).", file=sys.stderr
-                        )
-                        continue
+                        ok = False
+                        break
+
+                if not ok:
+                    print(f"skipped {_id}: '{k}' is not found ({v}).", file=sys.stderr)
+                    continue
 
                 videos[_id] = video
+
     print(f"collected {len(videos)} videos.")
 
     # prepare processing output directories
@@ -121,57 +124,64 @@ def _preprocess(
     # if output path of processed video exists, skip it.
     out_path = save_path / name
     if out_path.exists():
+        return [name, len(depth_video)]
+
+    try:
+        # determine crop region from human bone points
+        xmin, xmax = joints[0].min(), joints[0].max()
+        xmid = int(xmax + xmin / 2)
+        xs = xmid - HEIGHT // 2
+        xs = min(max(0, xs), WIDTH - HEIGHT)
+        xe = xs + HEIGHT
+
+        # crop video and resize
+        resize_to = (img_size, img_size)
+        color_video = color_video[:, :, xs:xe]
+        color_video = dataio.resize_video(color_video, resize_to, "cubic")
+        depth_video = depth_video[:, :, xs:xe]
+        depth_video = dataio.resize_video(depth_video, resize_to, "nearest")
+        segm_video = segm_video[:, :, xs:xe]
+        segm_video = dataio.resize_video(segm_video, resize_to, "nearest")
+
+        T, H, W = depth_video.shape
+
+        # save under a temporary directory once.
+        temp_path = Path(tempfile.mkdtemp())
+
+        # save color video
+        dataio.save_video_as_images(color_video, temp_path / "color")
+
+        # save depth video
+        # dataio.save_video_as_images(depth_video, temp_path / "depth", grayscale=True)
+        np.save(str(temp_path / "depth"), depth_video)
+
+        # save segmentation video
+        np.save(str(temp_path / "segm"), segm_video)
+
+        # save to look
+        p = (save_path / "color" / name).with_suffix(".mp4")
+        dataio.write_video(color_video, p, fps=20)
+
+        p = (save_path / "depth" / name).with_suffix(".mp4")
+        depth_video = _process_depth_video(depth_video)
+        dataio.write_video(depth_video, p, fps=20)
+
+        p = (save_path / "segm" / name).with_suffix(".mp4")
+        n_segm_parts = 25
+        _segm_video = np.zeros((T, H, W, 3), dtype=np.uint8)
+        for i in range(n_segm_parts):
+            _segm_video[segm_video == i] = (util.segm_color(i) * 255).astype(np.uint8)
+        dataio.write_video(_segm_video, p, fps=20)
+
+        shutil.move(str(temp_path), str(out_path))
+
+        return [name, T]
+    except Exception:
+        import traceback
+
+        traceback.print_exc()
+        print(f"Unexpected error occurred: {name}")
         return None
-
-    # determine crop region from human bone points
-    xmin, xmax = joints[0].min(), joints[0].max()
-    xmid = int(xmax + xmin / 2)
-    xs = xmid - HEIGHT // 2
-    xs = min(max(0, xs), WIDTH - HEIGHT)
-    xe = xs + HEIGHT
-
-    # crop video and resize
-    resize_to = (img_size, img_size)
-    color_video = color_video[:, :, xs:xe]
-    color_video = dataio.resize_video(color_video, resize_to, "cubic")
-    depth_video = depth_video[:, :, xs:xe]
-    depth_video = dataio.resize_video(depth_video, resize_to, "nearest")
-    segm_video = segm_video[:, :, xs:xe]
-    segm_video = dataio.resize_video(segm_video, resize_to, "nearest")
-
-    # save under a temporary directory once.
-    temp_path = Path(tempfile.mkdtemp())
-    T, H, W = depth_video.shape
-
-    # save color video
-    dataio.save_video_as_images(color_video, temp_path / "color")
-
-    # save depth video
-    # dataio.save_video_as_images(depth_video, temp_path / "depth", grayscale=True)
-    np.save(str(temp_path / "depth"), depth_video)
-
-    # save segmentation video
-    n_segm_parts = 25
-    segm_video_one_hot = np.eye(n_segm_parts)[segm_video]
-    np.save(str(temp_path / "segm"), segm_video_one_hot)
-
-    shutil.move(str(temp_path), str(out_path))
-
-    # save to look
-    p = (save_path / "color" / name).with_suffix(".mp4")
-    dataio.write_video(color_video, p, fps=20)
-
-    p = (save_path / "depth" / name).with_suffix(".mp4")
-    depth_video = np.stack([_convert_depth_to_image(d) for d in depth_video])
-    dataio.write_video(depth_video, p, fps=20)
-
-    p = (save_path / "segm" / name).with_suffix(".mp4")
-    _segm_video = np.zeros((T, H, W, 3), dtype=np.uint8)
-    for i in range(n_segm_parts):
-        _segm_video[segm_video == i] = (util.segm_color(i) * 255).astype(np.uint8)
-    dataio.write_video(_segm_video, p, fps=20)
-
-    return [name, T]
 
 
 def _read_depth_mat(path: Path) -> np.ndarray:
@@ -262,25 +272,41 @@ def depth_color(v):
     return list(map(lambda x: int(x * 255), cmap(v)[:3]))
 
 
-def _convert_depth_to_image(depth: np.ndarray):
-    BACKGROUND, BACKGROUND_COLOR = 1e10, 130
-    human_mask = np.where(depth < BACKGROUND)
-    human_depth = depth[human_mask]
+def _process_depth_video(depth: np.ndarray):
+    """
+    Convert depth data in SURREAL dataset into color video.
 
-    H, W = depth.shape
-    depth_img = np.ones((H, W, 3), dtype=np.uint8) * BACKGROUND_COLOR
+    Parameters
+    ----------
+    depth : np.ndarray
+        Depth map included in SURREAL dataset.
+
+    Returns
+    -------
+    depth_video : numpy.ndarray
+        Visualized depth video
+        (dtype: uint8, shape: (240, 320, 3), axis: (H, W, C), order: RGB).
+
+    """
+    BACKGROUND, BACKGROUND_COLOR = 1e10, 130
+    human_masks = np.where(depth < BACKGROUND)
+    human_depth = depth[human_masks]
+
+    T, H, W = depth.shape
+    depth_video = np.ones((T, H, W, 3), dtype=np.uint8) * BACKGROUND_COLOR
 
     if len(human_depth) == 0:
-        return depth_img
+        return depth_video
 
     ma, mi = human_depth.max(), human_depth.min()
-    human_depth = (human_depth - mi) / (ma - mi)
+    if ma - mi > 0:
+        human_depth = (human_depth - mi) / (ma - mi)
     human_depth = (human_depth * 255).astype(np.uint8)
     human_depth = np.array([depth_color(v) for v in human_depth], dtype=np.uint8)
 
-    depth_img[human_mask] = human_depth
+    depth_video[human_masks] = human_depth
 
-    return depth_img
+    return depth_video
 
 
 if __name__ == "__main__":
