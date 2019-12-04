@@ -1,4 +1,5 @@
 import json
+from typing import List
 
 import numpy as np
 import torch
@@ -56,7 +57,7 @@ class GeometricVideoGenerator(nn.Module):
 
         self.recurrent: nn.Module = nn.GRUCell(dim_z_motion, dim_z_motion)
 
-        self.main = nn.Sequential(
+        modules: List[nn.Module] = [
             nn.ConvTranspose2d(dim_z, ngf * 8, 4, 1, 0, bias=False),
             nn.BatchNorm2d(ngf * 8),
             nn.ReLU(inplace=True),
@@ -70,8 +71,13 @@ class GeometricVideoGenerator(nn.Module):
             nn.BatchNorm2d(ngf),
             nn.ReLU(inplace=True),
             nn.ConvTranspose2d(ngf, self.channel, 4, 2, 1, bias=False),
-            nn.Tanh(),
-        )
+        ]
+        if self.geometric_info == "segmentation":
+            modules.append(nn.Softmax(dim=1))
+        else:
+            modules.append(nn.Tanh())
+
+        self.main = nn.Sequential(*modules)
 
         self.device = util.current_device()
 

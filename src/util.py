@@ -9,6 +9,7 @@ from joblib import Parallel, delayed
 from PIL import Image
 from tqdm import tqdm
 
+import util
 from generator import ColorVideoGenerator, GeometricVideoGenerator
 
 
@@ -217,6 +218,7 @@ def geometric_info_in_color_format(xg: np.ndarray, geometric_info: str) -> np.nd
         xg = np.tile(xg, (1, 3, 1, 1, 1))
         xg = (xg + 1) / 2 * 255
         xg = xg.astype("uint8")
+
     elif geometric_info == "optical-flow":
         B, C, T, H, W = xg.shape
         xg = xg.transpose(0, 2, 3, 4, 1)  # (B, T, H, W, C)
@@ -228,6 +230,18 @@ def geometric_info_in_color_format(xg: np.ndarray, geometric_info: str) -> np.nd
         xg = np.stack(xg)
         xg = xg.astype("uint8")
         xg = xg.transpose(0, 4, 1, 2, 3)  # (B, C, T, H, W)
+
+    elif geometric_info == "segmentation":
+        xg = np.argmax(xg, axis=1)
+
+        NUM_SEGM_PARTS = 25
+        B, T, H, W = xg.shape
+        xgv = np.zeros((B, T, H, W, 3), dtype=np.uint8)
+        for i in range(NUM_SEGM_PARTS):
+            xgv[xg == i] = (util.segm_color(i) * 255).astype(np.uint8)
+        xg = xgv
+        xg = xg.transpose(0, 4, 1, 2, 3)  # (B, C, T, H, W)
+
     else:
         raise NotImplementedError
 

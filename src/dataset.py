@@ -173,6 +173,13 @@ class VideoDataset(Dataset):
             geo_video = geo_video.transpose(3, 0, 1, 2)  # change to channel first
             geo_video = geo_video / float(self.image_size)
 
+        elif self.geometric_info == "segmentation":
+            NUM_SEGM_PARTS = 25
+            geo_video = np.load(str(path / ("segm.npy")), mmap_mode="r")
+            geo_video = geo_video[frames_to_read]
+            geo_video = np.eye(NUM_SEGM_PARTS, dtype=np.float32)[geo_video]
+            geo_video = geo_video.transpose(3, 0, 1, 2)  # change to channel first
+
         else:
             raise NotImplementedError
 
