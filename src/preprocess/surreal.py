@@ -1,3 +1,4 @@
+import random
 import shutil
 import sys
 import tempfile
@@ -16,6 +17,7 @@ import util
 
 HEIGHT = 240
 WIDTH = 360
+HUMAN_HEAD_HEIGHT = 22
 
 
 def preprocess_surreal_dataset(
@@ -109,6 +111,15 @@ def _preprocess(
     segm_video = _read_segm_mat(video["segm"])  # (T, H, W)
     joints = _read_joints2d(video["info"])  # (T, N, 2)
 
+    # crop to square size
+    offset = (WIDTH - HEIGHT) // 2
+    SIZE = HEIGHT
+    color_video = color_video[:, :, offset : offset + SIZE]
+    depth_video = depth_video[:, :, offset : offset + SIZE]
+    segm_video = segm_video[:, :, offset : offset + SIZE]
+    joints[0] = joints[0] - offset
+    joints = np.clip(joints, 0, HEIGHT)
+
     if len(color_video) < 16:
         print(f"length of color, depth, segm, joints are not matched. {name} skipped.")
         return None
@@ -126,21 +137,34 @@ def _preprocess(
     if out_path.exists():
         return [name, len(depth_video)]
 
+    # thread safe random value
+    local_random = random.Random()
+    seed = abs(hash(name)) % (10 ** 8)
+    local_random.seed(seed)
+
     try:
         # determine crop region from human bone points
-        xmin, xmax = joints[0].min(), joints[0].max()
-        xmid = int(xmax + xmin / 2)
-        xs = xmid - HEIGHT // 2
-        xs = min(max(0, xs), WIDTH - HEIGHT)
-        xe = xs + HEIGHT
+        min_mean = joints.min(axis=1).mean(axis=0)
+        max_mean = joints.max(axis=1).mean(axis=0)
+        min_mean[1] = max(min_mean[1] - HUMAN_HEAD_HEIGHT, 0)
+        mean_square = (max_mean - min_mean).max()
+        new_size = mean_square + (SIZE - mean_square) * local_random.random()
+        new_size = int(new_size)
+        if new_size > SIZE:
+            print(f"unexpected error: new_size is larger than original SIZE")
+            return None
+
+        lx = local_random.randint(0, min(int(min_mean[0]), SIZE - new_size))
+        ly = local_random.randint(0, min(int(min_mean[1]), SIZE - new_size))
 
         # crop video and resize
+        color_video = color_video[:, ly : ly + new_size, lx : lx + new_size]
+        depth_video = depth_video[:, ly : ly + new_size, lx : lx + new_size]
+        segm_video = segm_video[:, ly : ly + new_size, lx : lx + new_size]
+
         resize_to = (img_size, img_size)
-        color_video = color_video[:, :, xs:xe]
-        color_video = dataio.resize_video(color_video, resize_to, "cubic")
-        depth_video = depth_video[:, :, xs:xe]
+        color_video = dataio.resize_video(color_video, resize_to, "linear")
         depth_video = dataio.resize_video(depth_video, resize_to, "nearest")
-        segm_video = segm_video[:, :, xs:xe]
         segm_video = dataio.resize_video(segm_video, resize_to, "nearest")
 
         T, H, W = depth_video.shape
@@ -152,7 +176,6 @@ def _preprocess(
         dataio.save_video_as_images(color_video, temp_path / "color")
 
         # save depth video
-        # dataio.save_video_as_images(depth_video, temp_path / "depth", grayscale=True)
         np.save(str(temp_path / "depth"), depth_video)
 
         # save segmentation video

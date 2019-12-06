@@ -140,7 +140,7 @@ class VideoDataset(Dataset):
             human_depth = depth_raw[human_masks]
 
             T, H, W = depth_raw.shape
-            geo_video = np.zeros((T, H, W), dtype=np.float32)
+            geo_video = np.ones((T, H, W), dtype=np.float32) * 1.0
 
             if len(human_depth) == 0:
                 geo_video = np.expand_dims(geo_video, 0)
@@ -149,7 +149,7 @@ class VideoDataset(Dataset):
             ma, mi = human_depth.max(), human_depth.min()
             if ma - mi > 0:
                 human_depth = (human_depth - mi) / (ma - mi)
-            human_depth = human_depth * 1.8 - 0.8  # [-0.8, 1.0], -1.0 is background.
+            human_depth = human_depth * 1.8 - 1.0  # [-1.0, 0.8], 1.0 is background.
 
             geo_video[human_masks] = human_depth
             geo_video = np.expand_dims(geo_video, 0)
