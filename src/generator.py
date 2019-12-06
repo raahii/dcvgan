@@ -294,6 +294,10 @@ class ColorVideoGenerator(nn.Module):
     dim_z : int
         Number of dimension of the color latent variable
 
+    geometric_info : str
+        Type of the geometric infomation.
+        The choices are "depth" or "flow"
+
     ngf : int
         Standard number of the kernel filters
 
@@ -301,12 +305,20 @@ class ColorVideoGenerator(nn.Module):
         The length of input/output video
     """
 
-    def __init__(self, in_ch: int, dim_z: int, ngf: int = 64, video_length: int = 16):
+    def __init__(
+        self,
+        in_ch: int,
+        dim_z: int,
+        geometric_info: str,
+        ngf: int = 64,
+        video_length: int = 16,
+    ):
         super(ColorVideoGenerator, self).__init__()
 
         self.in_ch = in_ch
         self.out_ch = 3
         self.dim_z = dim_z
+        self.geometric_info = geometric_info
 
         self.inconv = Inconv(in_ch, ngf * 1)
         self.down_blocks = nn.ModuleList(
@@ -362,6 +374,15 @@ class ColorVideoGenerator(nn.Module):
         """
         # video to images
         B, C, H, W = x.shape
+
+        if self.geometric_info == "segmentation":
+            # convert value range of one hot (or softmax) image maps into [-1, 1]
+            # ex) num classes: 3, value: 2 -> [-1, -1, 1]
+            indices = torch.argmax(x, 1, keepdim=True)
+            _x = torch.empty_like(x)
+            _x.fill_(-1.0)
+            _x.scatter_(1, indices, 1.0)
+            x = _x
 
         # down
         hs = [self.inconv(x)]

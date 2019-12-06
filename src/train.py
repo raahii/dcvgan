@@ -125,6 +125,7 @@ def main():
     cgen = ColorVideoGenerator(
         ggen.channel,
         configs["cgen"]["dim_z_color"],
+        configs["geometric_info"]["name"],
         configs["cgen"]["ngf"],
         configs["video_length"],
     )

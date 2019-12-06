@@ -43,7 +43,7 @@ class Trainer(object):
         self.num_log, self.rows_log, self.cols_log = 25, 5, 5
 
         self.eval_batchsize = configs["evaluation"]["batchsize"]
-        self.eval_num_smaples = configs["evaluation"]["num_samples"]
+        self.eval_num_samples = configs["evaluation"]["num_samples"]
         self.eval_metrics = configs["evaluation"]["metrics"]
 
         # dataloader for logging real samples on tensorboard
@@ -146,7 +146,7 @@ class Trainer(object):
 
         # real samples
         # take next batch: (dtype: float, axis: (B, C, T, H, W))
-        batch = next(self.dataloader_log.__iter__())
+        batch = next(iter(self.dataloader_log))
         xg_real, xc_real = batch[self.geometric_info], batch["color"]
 
         # convert xc to np.ndarray: (dtype: int, axis: (B, C, T, H, W))
@@ -189,17 +189,20 @@ class Trainer(object):
             and (dataset_dir / "probs.npy").exists()
         ):
             # convert to convolutional features with inpception model
-            f, p = compute_conv_features.convert(self.eval_batchsize, dataset_dir)
+            f, p = compute_conv_features.convert(
+                self.eval_batchsize, dataset_dir, n_workers=8
+            )
             compute_conv_features.save(f, p, dataset_dir)
 
         # generate fake samples
         _, xc = util.generate_samples(
             ggen,
             cgen,
-            self.eval_num_smaples,
+            self.eval_num_samples,
             self.eval_batchsize,
-            desc=f"sampling {self.eval_num_smaples} videos for evalaution",
-            verbose=False,
+            with_geo=False,
+            desc=f"sampling {self.eval_num_samples} videos for evalaution",
+            verbose=True,
         )
         ggen, cgen = ggen.to("cpu"), cgen.to("cpu")
 
@@ -208,11 +211,13 @@ class Trainer(object):
         temp_dir = Path(temp.name)
         samples_dir = temp_dir / "samples"
         samples_dir.mkdir()
-        for i, x in enumerate(xc):
-            dataio.write_video(x, samples_dir / f"{i}.mp4")
+        save_paths = [samples_dir / f"{i}.mp4" for i in range(self.eval_num_samples)]
+        dataio.write_videos_pararell(xc, save_paths)
 
         # convert to convolutional features with inpception model
-        f, p = compute_conv_features.convert(self.eval_batchsize, samples_dir)
+        f, p = compute_conv_features.convert(
+            self.eval_batchsize, samples_dir, n_workers=8
+        )
         compute_conv_features.save(f, p, temp_dir)
 
         for m in self.eval_metrics:
@@ -255,9 +260,12 @@ class Trainer(object):
 
         self.logger.debug("(evaluation)")
         self.logger.debug(f"batchsize: {self.eval_batchsize}", 1)
-        self.logger.debug(f"num_samples: {self.eval_num_smaples}", 1)
+        self.logger.debug(f"num_samples: {self.eval_num_samples}", 1)
         self.logger.debug(f"metrics: {self.eval_metrics}", 1)
         self.logger.debug("(start training)")
+
+        self.log_samples(ggen, cgen, 0)
+        self.evaluate(ggen, cgen)
         self.logger.print_header()
         for i in range(self.configs["n_epochs"]):
             self.epoch += 1
