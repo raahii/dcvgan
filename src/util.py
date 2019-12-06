@@ -253,6 +253,7 @@ def generate_samples(
     cgen: ColorVideoGenerator,
     num: int,
     batchsize: int = 20,
+    with_geo: bool = True,
     verbose: bool = False,
     desc: str = "generating samples",
 ) -> Tuple[np.ndarray, np.ndarray]:
@@ -269,6 +270,9 @@ def generate_samples(
 
     num : int
         Number of videos to generate.
+
+    with_geo : int
+        If true, geometric information is also collected and returned.
 
     batchsize : int
         Batchsize.
@@ -299,16 +303,18 @@ def generate_samples(
             xg = ggen.sample_videos(batchsize)
             xc = cgen.forward_videos(xg)
 
-        xg = xg.cpu().numpy()
-        xg = np.clip(xg, -1, 1)
-        xg_batches.append(xg)
+        if with_geo:
+            xg = xg.cpu().numpy()
+            xg = np.clip(xg, -1, 1)
+            xg_batches.append(xg)
 
         xc = videos_to_numpy(xc)
         xc_batches.append(xc)
 
-    xg = np.concatenate(xg_batches)
-    xg = xg[:num]
-    xg = geometric_info_in_color_format(xg, ggen.geometric_info)
+    if with_geo:
+        xg = np.concatenate(xg_batches)
+        xg = xg[:num]
+        xg = geometric_info_in_color_format(xg, ggen.geometric_info)
 
     xc = np.concatenate(xc_batches)
     xc = xc[:num]
