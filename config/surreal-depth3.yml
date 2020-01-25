@@ -1,10 +1,10 @@
 # experiment configs
-experiment_name: "surreal-depth"
+experiment_name: "surreal-depth8"
 
 # basic configs
-batchsize: 100
-n_epochs: 200
-seed: 15
+batchsize: 60
+n_epochs: 100
+seed: 1
 
 video_length: 16
 image_size: 64
@@ -21,13 +21,13 @@ geometric_info:
 log_interval:         160
 log_samples_interval: 1600
 snapshot_interval:    1600
-evaluation_interval:  1600
+evaluation_interval:  3200
 
 # loss
 loss: "adversarial-loss"
 
 # update ratio
-num_gen_update: 1
+num_gen_update: 2
 num_dis_update: 1
 
 # dataset configs
@@ -55,7 +55,7 @@ ggen:
 
 cgen:
   dim_z_color: 10
-  ngf: 64
+  ngf: 96
 
   optimizer:
     lr: 0.0002

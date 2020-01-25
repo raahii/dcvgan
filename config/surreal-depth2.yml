@@ -1,10 +1,10 @@
 # experiment configs
-experiment_name: "surreal-segm"
+experiment_name: "surreal-depth7"
 
 # basic configs
-batchsize: 60
-n_epochs: 200
-seed: 15
+batchsize: 100
+n_epochs: 100
+seed: 1
 
 video_length: 16
 image_size: 64
@@ -14,8 +14,8 @@ log_dir: "result/surreal"
 
 # geometric information type
 geometric_info:
-  name: "segmentation"
-  channel: 25
+  name: "depth"
+  channel: 1
 
 # interval
 log_interval:         160
@@ -27,7 +27,7 @@ evaluation_interval:  3200
 loss: "adversarial-loss"
 
 # update ratio
-num_gen_update: 2
+num_gen_update: 3
 num_dis_update: 1
 
 # dataset configs
@@ -73,7 +73,7 @@ idis:
 vdis:
   use_noise: True
   noise_sigma: 0.2
-  ndf: 48
+  ndf: 64
 
   optimizer:
     lr: 0.0002
