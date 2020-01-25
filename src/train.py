@@ -19,6 +19,7 @@ from logger import Logger
 from loss import AdversarialLoss, HingeLoss, Loss
 from preprocess.isogd import preprocess_isogd_dataset
 from preprocess.mug import preprocess_mug_dataset
+from preprocess.surreal import preprocess_surreal_dataset
 from trainer import Trainer
 
 
@@ -82,7 +83,7 @@ def main():
     elif configs["loss"] == "hinge-loss":
         loss = HingeLoss()
     else:
-        logger.error(f"Specified loss is not supported {config['loss']}")
+        logger.error(f"Specified loss is not supported {configs['loss']}")
         sys.exit(1)
     logger.debug(f"loss: {configs['loss']}", 1)
 
@@ -124,6 +125,7 @@ def main():
     cgen = ColorVideoGenerator(
         ggen.channel,
         configs["cgen"]["dim_z_color"],
+        configs["geometric_info"]["name"],
         configs["cgen"]["ngf"],
         configs["video_length"],
     )

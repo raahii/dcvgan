@@ -131,7 +131,30 @@ class VideoDataset(Dataset):
         color_video = color_video.astype(np.float32) / 127.5 - 1.0  # change value range
 
         # read geometric infomation video
-        if self.geometric_info == "depth":
+        if self.geometric_info == "depth" and self.name == "surreal":
+            depth_raw = np.load(str(path / "depth.npy"), mmap_mode="r")
+            depth_raw = depth_raw[frames_to_read]
+
+            BACKGROUND = 1e10
+            human_masks = depth_raw < BACKGROUND
+            human_depth = depth_raw[human_masks]
+
+            T, H, W = depth_raw.shape
+            geo_video = np.ones((T, H, W), dtype=np.float32) * 1.0
+
+            if len(human_depth) == 0:
+                geo_video = np.expand_dims(geo_video, 0)
+                return {"color": color_video, self.geometric_info: geo_video}
+
+            ma, mi = human_depth.max(), human_depth.min()
+            if ma - mi > 0:
+                human_depth = (human_depth - mi) / (ma - mi)
+            human_depth = human_depth * 1.8 - 1.0  # [-1.0, 0.8], 1.0 is background.
+
+            geo_video[human_masks] = human_depth
+            geo_video = np.expand_dims(geo_video, 0)
+
+        elif self.geometric_info == "depth":
             placeholder = str(path / self.geometric_info / ("{:03d}." + self.ext))
             geo_video: np.ndarray = np.stack(
                 [
@@ -141,6 +164,7 @@ class VideoDataset(Dataset):
             )
             geo_video = geo_video.transpose(3, 0, 1, 2)  # change to channel first
             geo_video = geo_video.astype(np.float32) / 127.5 - 1.0  # change value range
+
         elif self.geometric_info == "optical-flow":
             geo_video = np.load(
                 str(path / (self.geometric_info + ".npy")), mmap_mode="r"
@@ -148,6 +172,14 @@ class VideoDataset(Dataset):
             geo_video = geo_video[frames_to_read]
             geo_video = geo_video.transpose(3, 0, 1, 2)  # change to channel first
             geo_video = geo_video / float(self.image_size)
+
+        elif self.geometric_info == "segmentation":
+            NUM_SEGM_PARTS = 25
+            geo_video = np.load(str(path / ("segm.npy")), mmap_mode="r")
+            geo_video = geo_video[frames_to_read]
+            geo_video = np.eye(NUM_SEGM_PARTS, dtype=np.float32)[geo_video]
+            geo_video = geo_video.transpose(3, 0, 1, 2)  # change to channel first
+
         else:
             raise NotImplementedError
 

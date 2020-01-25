@@ -54,7 +54,7 @@ def preprocess_isogd_dataset(
 ):
     """
     Preprocessing function for Chalearn LAP IsoGD Database
-    http://www.cbsr.ia.ac.cn/users/jwan/database/isogd.html
+    link: http://www.cbsr.ia.ac.cn/users/jwan/database/isogd.html
     """
     # read samples in 'train'
     with open(dataset_path / f"{mode}_list.txt") as f:

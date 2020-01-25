@@ -35,7 +35,7 @@ class TestUtilities(unittest.TestCase):
             ggen = GeometricVideoGenerator(**inputs)
 
             # init cgen
-            inputs = {"in_ch": ch, "dim_z": 10}
+            inputs = {"in_ch": ch, "dim_z": 10, "geometric_info": geometric_info}
             cgen = ColorVideoGenerator(**inputs)
 
             # generate

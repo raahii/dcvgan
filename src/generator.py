@@ -1,4 +1,5 @@
 import json
+from typing import List
 
 import numpy as np
 import torch
@@ -56,7 +57,7 @@ class GeometricVideoGenerator(nn.Module):
 
         self.recurrent: nn.Module = nn.GRUCell(dim_z_motion, dim_z_motion)
 
-        self.main = nn.Sequential(
+        modules: List[nn.Module] = [
             nn.ConvTranspose2d(dim_z, ngf * 8, 4, 1, 0, bias=False),
             nn.BatchNorm2d(ngf * 8),
             nn.ReLU(inplace=True),
@@ -70,8 +71,13 @@ class GeometricVideoGenerator(nn.Module):
             nn.BatchNorm2d(ngf),
             nn.ReLU(inplace=True),
             nn.ConvTranspose2d(ngf, self.channel, 4, 2, 1, bias=False),
-            nn.Tanh(),
-        )
+        ]
+        if self.geometric_info == "segmentation":
+            modules.append(nn.Softmax(dim=1))
+        else:
+            modules.append(nn.Tanh())
+
+        self.main = nn.Sequential(*modules)
 
         self.device = util.current_device()
 
@@ -288,6 +294,10 @@ class ColorVideoGenerator(nn.Module):
     dim_z : int
         Number of dimension of the color latent variable
 
+    geometric_info : str
+        Type of the geometric infomation.
+        The choices are "depth" or "flow"
+
     ngf : int
         Standard number of the kernel filters
 
@@ -295,12 +305,20 @@ class ColorVideoGenerator(nn.Module):
         The length of input/output video
     """
 
-    def __init__(self, in_ch: int, dim_z: int, ngf: int = 64, video_length: int = 16):
+    def __init__(
+        self,
+        in_ch: int,
+        dim_z: int,
+        geometric_info: str,
+        ngf: int = 64,
+        video_length: int = 16,
+    ):
         super(ColorVideoGenerator, self).__init__()
 
         self.in_ch = in_ch
         self.out_ch = 3
         self.dim_z = dim_z
+        self.geometric_info = geometric_info
 
         self.inconv = Inconv(in_ch, ngf * 1)
         self.down_blocks = nn.ModuleList(
@@ -356,6 +374,15 @@ class ColorVideoGenerator(nn.Module):
         """
         # video to images
         B, C, H, W = x.shape
+
+        if self.geometric_info == "segmentation":
+            # convert value range of one hot (or softmax) image maps into [-1, 1]
+            # ex) num classes: 3, value: 2 -> [-1, -1, 1]
+            indices = torch.argmax(x, 1, keepdim=True)
+            _x = torch.empty_like(x)
+            _x.fill_(-1.0)
+            _x.scatter_(1, indices, 1.0)
+            x = _x
 
         # down
         hs = [self.inconv(x)]

@@ -42,10 +42,10 @@ class TestDataset(unittest.TestCase):
             color, depth = batch["color"], batch["depth"]
 
             self.assertEqual((COLOR_CHANNEL, length, size, size), color.shape)
-            self.assertEqual(np.all(color >= -1.0) and np.all(color <= 1.0))
+            self.assertTrue(np.all(color >= -1.0) and np.all(color <= 1.0))
 
             self.assertEqual((DEPTH_CHANNEL, length, size, size), batch["depth"].shape)
-            self.assertEqual(np.all(depth >= -1.0) and np.all(depth <= 1.0))
+            self.assertTrue(np.all(depth >= -1.0) and np.all(depth <= 1.0))
 
     def test_batch_optical_flow(self):
         size = 64
@@ -59,10 +59,10 @@ class TestDataset(unittest.TestCase):
             color, flow = batch["color"], batch["optical-flow"]
 
             self.assertEqual((COLOR_CHANNEL, length, size, size), color.shape)
-            self.assertEqual(np.all(color >= -1.0) and np.all(color <= 1.0))
+            self.assertTrue(np.all(color >= -1.0) and np.all(color <= 1.0))
 
             self.assertEqual((FLOW_CHANNEL, length, size, size), flow.shape)
-            self.assertEqual(np.all(flow >= -1.0) and np.all(flow <= 1.0))
+            self.assertTrue(np.all(flow >= -1.0) and np.all(flow <= 1.0))
 
     def test_color_video_tensor(self):
         size = 64

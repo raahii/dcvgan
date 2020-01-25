@@ -3,3 +3,6 @@ src/evaluation/result
 data
 result
 deploy.sh
+
+.benchmarks
+.pytest_cache

@@ -9,6 +9,7 @@ from joblib import Parallel, delayed
 from PIL import Image
 from tqdm import tqdm
 
+import util
 from generator import ColorVideoGenerator, GeometricVideoGenerator
 
 
@@ -217,6 +218,7 @@ def geometric_info_in_color_format(xg: np.ndarray, geometric_info: str) -> np.nd
         xg = np.tile(xg, (1, 3, 1, 1, 1))
         xg = (xg + 1) / 2 * 255
         xg = xg.astype("uint8")
+
     elif geometric_info == "optical-flow":
         B, C, T, H, W = xg.shape
         xg = xg.transpose(0, 2, 3, 4, 1)  # (B, T, H, W, C)
@@ -228,6 +230,18 @@ def geometric_info_in_color_format(xg: np.ndarray, geometric_info: str) -> np.nd
         xg = np.stack(xg)
         xg = xg.astype("uint8")
         xg = xg.transpose(0, 4, 1, 2, 3)  # (B, C, T, H, W)
+
+    elif geometric_info == "segmentation":
+        xg = np.argmax(xg, axis=1)
+
+        NUM_SEGM_PARTS = 25
+        B, T, H, W = xg.shape
+        xgv = np.zeros((B, T, H, W, 3), dtype=np.uint8)
+        for i in range(NUM_SEGM_PARTS):
+            xgv[xg == i] = (util.segm_color(i) * 255).astype(np.uint8)
+        xg = xgv
+        xg = xg.transpose(0, 4, 1, 2, 3)  # (B, C, T, H, W)
+
     else:
         raise NotImplementedError
 
@@ -239,6 +253,7 @@ def generate_samples(
     cgen: ColorVideoGenerator,
     num: int,
     batchsize: int = 20,
+    with_geo: bool = True,
     verbose: bool = False,
     desc: str = "generating samples",
 ) -> Tuple[np.ndarray, np.ndarray]:
@@ -255,6 +270,9 @@ def generate_samples(
 
     num : int
         Number of videos to generate.
+
+    with_geo : int
+        If true, geometric information is also collected and returned.
 
     batchsize : int
         Batchsize.
@@ -285,18 +303,68 @@ def generate_samples(
             xg = ggen.sample_videos(batchsize)
             xc = cgen.forward_videos(xg)
 
-        xg = xg.cpu().numpy()
-        xg = np.clip(xg, -1, 1)
-        xg_batches.append(xg)
+        if with_geo:
+            xg = xg.cpu().numpy()
+            xg = np.clip(xg, -1, 1)
+            xg_batches.append(xg)
 
         xc = videos_to_numpy(xc)
         xc_batches.append(xc)
 
-    xg = np.concatenate(xg_batches)
-    xg = xg[:num]
-    xg = geometric_info_in_color_format(xg, ggen.geometric_info)
+    if with_geo:
+        xg = np.concatenate(xg_batches)
+        xg = xg[:num]
+        xg = geometric_info_in_color_format(xg, ggen.geometric_info)
 
     xc = np.concatenate(xc_batches)
     xc = xc[:num]
 
     return xg, xc
+
+
+def segm_color(i: int) -> np.ndarray:
+    """
+    Return segmentation color value
+
+    Parameters
+    ----------
+    i : int
+        Segmentation index number.
+
+    Returns
+    ----------
+    color : np.ndarray
+        Color value. (dtype: numpy.float, axis: (C), order: RGB).
+    """
+    # following to https://github.com/gulvarol/surreal/blob/master/demo/segmColorMap.m
+    SEGM_PART_COLORS = [
+        # {{{
+        [0.4500, 0.5470, 0.6410],
+        [0.8500, 0.3250, 0.0980],
+        [0.9290, 0.6940, 0.1250],
+        [0.4940, 0.1840, 0.3560],
+        [0.4660, 0.6740, 0.1880],
+        [0.3010, 0.7450, 0.9330],
+        [0.5142, 0.7695, 0.7258],
+        [0.9300, 0.8644, 0.4048],
+        [0.6929, 0.6784, 0.7951],
+        [0.6154, 0.7668, 0.4158],
+        [0.4668, 0.6455, 0.7695],
+        [0.9227, 0.6565, 0.3574],
+        [0.6528, 0.8096, 0.3829],
+        [0.6856, 0.4668, 0.6893],
+        [0.7914, 0.7914, 0.7914],
+        [0.7440, 0.8571, 0.7185],
+        [0.9191, 0.7476, 0.8352],
+        [0.9300, 0.9300, 0.6528],
+        [0.3686, 0.3098, 0.6353],
+        [0.6196, 0.0039, 0.2588],
+        [0.9539, 0.8295, 0.6562],
+        [0.9955, 0.8227, 0.4828],
+        [0.1974, 0.5129, 0.7403],
+        [0.5978, 0.8408, 0.6445],
+        [0.8877, 0.6154, 0.5391],
+        [0.6206, 0.2239, 0.3094],
+        # }}}
+    ]
+    return np.asarray(SEGM_PART_COLORS[i])
