@@ -18,7 +18,7 @@ mypy:
 	mypy --ignore-missing-imports src
 
 debug:
-	python src/train.py --config config/debug-surreal-segm.yml
+	python src/train.py --config config/debug-isogd-depth.yml
 
 test:
 	python -m unittest discover -s src/test -p 'test_*.py'
@@ -35,3 +35,18 @@ deploy:
 	      --exclude-from=${HOME}/.rsyncignore \
 	      --exclude-from=.rsyncignore \
 	      $(shell ghq root)/github.com/raahii/dcvgan/ labo:~/study/dcvgan/
+
+deploy-ext:
+	rsync -auvz \
+	      --delete \
+	      --exclude-from=${HOME}/.rsyncignore \
+	      --exclude-from=.rsyncignore \
+	      $(shell ghq root)/github.com/raahii/dcvgan/ labo_ext:~/study/dcvgan/
+
+deploy-enpit:
+	rsync -auvz \
+	      --delete \
+	      --exclude-from=${HOME}/.rsyncignore \
+	      --exclude-from=.rsyncignore \
+	      $(shell ghq root)/github.com/raahii/dcvgan/ enpit:~/study/dcvgan/
+	# rsync -auvz --delete --exclude-from=${HOME}/.rsyncignore --exclude-from=.rsyncignore $(shell ghq root)/github.com/raahii/dcvgan/ enpit:~/study/dcvgan/

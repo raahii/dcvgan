@@ -13,7 +13,8 @@ import yaml
 
 import util
 from dataset import VideoDataLoader, VideoDataset
-from discriminator import ImageDiscriminator, VideoDiscriminator
+from discriminator import (GradientDiscriminator, ImageDiscriminator,
+                           VideoDiscriminator)
 from generator import ColorVideoGenerator, GeometricVideoGenerator
 from logger import Logger
 from loss import AdversarialLoss, HingeLoss, Loss

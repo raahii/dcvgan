@@ -37,7 +37,7 @@ class Loss(object):
 
     @abstractmethod
     def compute_gen_loss(
-        self, y_fake_i: torch.Tensor, y_fake_v: torch.Tensor
+        self, y_fake_i: torch.Tensor, y_fake_v: torch.Tensor, y_fake_g: torch.Tensor
     ) -> torch.Tensor:
         """
         Compute generator loss.
@@ -49,6 +49,9 @@ class Loss(object):
 
         y_fake_v: torch.Tensor
             Output of the video discriminator.
+
+        y_fake_g: torch.Tensor
+            Output of the gradient discriminator.
 
         Returns
         -------
@@ -96,7 +99,7 @@ class AdversarialLoss(Loss):
         return loss
 
     def compute_gen_loss(
-        self, y_fake_i: torch.Tensor, y_fake_v: torch.Tensor
+        self, y_fake_i: torch.Tensor, y_fake_v: torch.Tensor, y_fake_g: torch.Tensor
     ) -> torch.Tensor:
         """
         Compute adversarial loss for the generator.
@@ -109,6 +112,9 @@ class AdversarialLoss(Loss):
         y_fake_v: torch.Tensor
             Output of the video discriminator.
 
+        y_fake_g: torch.Tensor
+            Output of the gradient discriminator.
+
         Returns
         -------
         loss : torch.Tensor
@@ -116,9 +122,11 @@ class AdversarialLoss(Loss):
         """
         ones_i = torch.ones_like(y_fake_i, device=self.device)
         ones_v = torch.ones_like(y_fake_v, device=self.device)
+        ones_g = torch.ones_like(y_fake_g, device=self.device)
 
         loss = self.loss_func(y_fake_i, ones_i) / y_fake_i.numel()
         loss += self.loss_func(y_fake_v, ones_v) / y_fake_v.numel()
+        loss += self.loss_func(y_fake_g, ones_g) / y_fake_g.numel()
 
         return loss
 
@@ -158,7 +166,7 @@ class HingeLoss(Loss):
         return loss
 
     def compute_gen_loss(
-        self, y_fake_i: torch.Tensor, y_fake_v: torch.Tensor
+        self, y_fake_i: torch.Tensor, y_fake_v: torch.Tensor, y_fake_g: torch.Tensor
     ) -> torch.Tensor:
         """
         Compute hinge loss for the generator.
@@ -170,6 +178,9 @@ class HingeLoss(Loss):
 
         y_fake_v: torch.Tensor
             Output of the video discriminator.
+
+        y_fake_g: torch.Tensor
+            Output of the gradient discriminator.
 
         Returns
         -------

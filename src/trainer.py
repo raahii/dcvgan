@@ -244,7 +244,7 @@ class Trainer(object):
         # optimizers
         opt_ggen, opt_cgen = self.optimizers["ggen"], self.optimizers["cgen"]
         opt_idis, opt_vdis = self.optimizers["idis"], self.optimizers["vdis"]
-        (opt_gdis,) = self.optimizers["gdis"]
+        opt_gdis = self.optimizers["gdis"]
 
         # define metrics
         self.logger.define("loss_gen", MetricType.Loss)

@@ -72,7 +72,7 @@ class TestModelForward(unittest.TestCase):
 
         output = gdis(xg, xc)
 
-        expected = (BATCHSIZE, 4, 4, 4)
+        expected = (BATCHSIZE, 3, 4, 4)
         self.assertEqual(expected, output.shape)
 
 

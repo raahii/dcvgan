@@ -283,18 +283,24 @@ class GradientDiscriminator(nn.Module):
         self.ndf = ndf
 
         self.main = nn.Sequential(
+            # 1st
+            Noise(use_noise, sigma=noise_sigma),
             nn.Conv3d(ch1, ndf, 4, stride=(1, 2, 2), padding=(0, 1, 1), bias=False),
+            nn.BatchNorm3d(ndf),
             nn.LeakyReLU(0.2, inplace=True),
+            # 2nd
             Noise(use_noise, sigma=noise_sigma),
             nn.Conv3d(ndf, ndf * 2, 4, stride=(1, 2, 2), padding=(0, 1, 1), bias=False),
             nn.BatchNorm3d(ndf * 2),
             nn.LeakyReLU(0.2, inplace=True),
+            # 3rd
             Noise(use_noise, sigma=noise_sigma),
             nn.Conv3d(
                 ndf * 2, ndf * 4, 4, stride=(1, 2, 2), padding=(0, 1, 1), bias=False
             ),
             nn.BatchNorm3d(ndf * 4),
             nn.LeakyReLU(0.2, inplace=True),
+            # 4th
             Noise(use_noise, sigma=noise_sigma),
             nn.Conv3d(ndf * 4, 1, 4, stride=(1, 2, 2), padding=(0, 1, 1), bias=False),
         )
@@ -306,6 +312,7 @@ class GradientDiscriminator(nn.Module):
         ----------
         xg : torch.Tensor
             The input geometric infomation video
+
         xc : torch.Tensor
             The input color video
 
@@ -320,7 +327,8 @@ class GradientDiscriminator(nn.Module):
         # hc = self.conv_c(xc)
         # h = torch.cat([hc, hg], 1)
         # h = self.main(h).squeeze()
-        h = self.main(xg).squeeze()
+        _, _, L, _, _ = xg.shape
+        h = self.main(xg[:, :, 1:L] - xg[:, :, 0 : L - 1]).squeeze()
 
         return h
 
