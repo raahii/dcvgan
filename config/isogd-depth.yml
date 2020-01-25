@@ -1,5 +1,5 @@
 # experiment configs
-experiment_name: "isogd-depth"
+experiment_name: "isogd-depth-gradient-discriminator"
 
 # basic configs
 batchsize: 70
@@ -18,10 +18,10 @@ geometric_info:
   channel: 1
 
 # interval
-log_interval:         160
+log_interval: 160
 log_samples_interval: 1600
-snapshot_interval:    1600
-evaluation_interval:  1600
+snapshot_interval: 1600
+evaluation_interval: 3200
 
 # loss
 loss: "adversarial-loss"
@@ -39,8 +39,8 @@ dataset:
 
 # model evaluation during training
 evaluation:
-  batchsize: 50
-  num_samples: 10000
+  batchsize: 100
+  num_samples: 3000
   metrics: ["is", "fid"]
 
 # model configs
@@ -77,4 +77,13 @@ vdis:
 
   optimizer:
     lr: 0.0005
+    decay: 0.00001
+
+gdis:
+  use_noise: False
+  noise_sigma: 0.2
+  ndf: 32
+
+  optimizer:
+    lr: 0.0002
     decay: 0.00001

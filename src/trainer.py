@@ -181,6 +181,8 @@ class Trainer(object):
         cgen : nn.Module
             The color video generator.
         """
+        verbose = True
+
         # generate fake samples
         _, xc = util.generate_samples(
             ggen,
@@ -189,7 +191,7 @@ class Trainer(object):
             self.eval_batchsize,
             with_geo=False,
             desc=f"sampling {self.eval_num_samples} videos for evalaution",
-            verbose=True,
+            verbose=verbose,
         )
         ggen, cgen = ggen.to("cpu"), cgen.to("cpu")
 
@@ -201,13 +203,20 @@ class Trainer(object):
 
         # dataset directory
         dataset_dir = Path(self.dataloader.dataset.root_path) / "color"
+        batchsize = 100
         for m in self.eval_metrics:
             if m == "is":
-                score = evan.score.compute_inception_score(temp_dir)
+                score = evan.score.compute_inception_score(
+                    temp_dir, batchsize=batchsize, verbose=verbose
+                )
             elif m == "fid":
-                score = evan.score.compute_frechet_distance(temp_dir, dataset_dir)
+                score = evan.score.compute_frechet_distance(
+                    temp_dir, dataset_dir, batchsize=batchsize, verbose=verbose
+                )
             elif m == "prd":
-                score = evan.score.compute_precision_recall(temp_dir, dataset_dir)
+                score = evan.score.compute_precision_recall(
+                    temp_dir, dataset_dir, batchsize=batchsize, verbose=verbose
+                )
 
             self.logger.update(m, score)
 
@@ -254,8 +263,8 @@ class Trainer(object):
         self.logger.debug(f"metrics: {self.eval_metrics}", 1)
         self.logger.debug("(start training)")
 
-        # self.log_samples(ggen, cgen, 0)
-        # self.evaluate(ggen, cgen)
+        self.log_samples(ggen, cgen, 0)
+        self.evaluate(ggen, cgen)
         self.logger.print_header()
         for i in range(self.configs["n_epochs"]):
             self.epoch += 1
