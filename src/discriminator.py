@@ -242,3 +242,97 @@ class VideoDiscriminator(nn.Module):
                 }
             }
         )
+
+
+class GradientDiscriminator(nn.Module):
+    """
+    The gradient discriminator.
+
+    Parameters
+    ----------
+    ch1 : int
+        Num channels for input geometric information video.
+
+    ch2 : int
+        Num channels for input color video.
+
+    use_noise : bool
+        A parameter for the noise layer
+
+    noise_sigma : float
+        A parameter for the noise layer
+
+    ndf : int
+        Standard number of the kernel filters
+    """
+
+    def __init__(
+        self,
+        ch1: int,
+        ch2: int,
+        use_noise: bool = False,
+        noise_sigma: float = 0,
+        ndf: int = 64,
+    ):
+        super(GradientDiscriminator, self).__init__()
+
+        # do not use ch2 now
+        self.ch1, self.ch2 = ch1, ch2
+        self.use_noise = use_noise
+        self.noise_sigma = noise_sigma
+        self.ndf = ndf
+
+        self.main = nn.Sequential(
+            nn.Conv3d(ch1, ndf, 4, stride=(1, 2, 2), padding=(0, 1, 1), bias=False),
+            nn.LeakyReLU(0.2, inplace=True),
+            Noise(use_noise, sigma=noise_sigma),
+            nn.Conv3d(ndf, ndf * 2, 4, stride=(1, 2, 2), padding=(0, 1, 1), bias=False),
+            nn.BatchNorm3d(ndf * 2),
+            nn.LeakyReLU(0.2, inplace=True),
+            Noise(use_noise, sigma=noise_sigma),
+            nn.Conv3d(
+                ndf * 2, ndf * 4, 4, stride=(1, 2, 2), padding=(0, 1, 1), bias=False
+            ),
+            nn.BatchNorm3d(ndf * 4),
+            nn.LeakyReLU(0.2, inplace=True),
+            Noise(use_noise, sigma=noise_sigma),
+            nn.Conv3d(ndf * 4, 1, 4, stride=(1, 2, 2), padding=(0, 1, 1), bias=False),
+        )
+        self.device = util.current_device()
+
+    def forward(self, xg, xc):
+        """
+        Parameters
+        ----------
+        xg : torch.Tensor
+            The input geometric infomation video
+        xc : torch.Tensor
+            The input color video
+
+        Returns
+        -------
+        h : torch.Tensor
+            A feature map about the fidelity of input video pair.
+            The outputs are not probability values yet.
+            (C:1, T: 4, H: 4, W: 4)
+        """
+        # hg = self.conv_g(xg)
+        # hc = self.conv_c(xc)
+        # h = torch.cat([hc, hg], 1)
+        # h = self.main(h).squeeze()
+        h = self.main(xg).squeeze()
+
+        return h
+
+    def __str__(self, name: str = "vdis") -> str:
+        return json.dumps(
+            {
+                name: {
+                    "ch_g": self.ch1,
+                    "ch_c": self.ch2,
+                    "ndf": self.ndf,
+                    "use_noise": self.use_noise,
+                    "noise_sigma": self.noise_sigma,
+                }
+            }
+        )
