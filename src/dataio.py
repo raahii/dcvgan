@@ -174,14 +174,14 @@ def read_videos_pararell(
 
     Returns
     -------
-    videos : numpy.ndarray
-        Read video (dtype: np.uint8, axis: (N, T, H, W, C), order: RGB).
+    videos : List[np.ndarray]
+        List of Read videos (dtype: np.uint8, axis: (T, H, W, C), order: RGB).
     """
     videos = Parallel(n_jobs=n_jobs, verbose=verbose)(
         [delayed(read_video)(p) for p in paths]
     )
 
-    return np.stack(videos)
+    return videos
 
 
 def write_video(video: np.ndarray, path: Path, fps: int = 16) -> None:

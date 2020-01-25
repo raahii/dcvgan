@@ -18,7 +18,7 @@ mypy:
 	mypy --ignore-missing-imports src
 
 debug:
-	python src/train.py --config config/debug-isogd-flow.yml
+	python src/train.py --config config/debug-surreal-segm.yml
 
 test:
 	python -m unittest discover -s src/test -p 'test_*.py'

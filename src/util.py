@@ -323,6 +323,19 @@ def generate_samples(
 
 
 def segm_color(i: int) -> np.ndarray:
+    """
+    Return segmentation color value
+
+    Parameters
+    ----------
+    i : int
+        Segmentation index number.
+
+    Returns
+    ----------
+    color : np.ndarray
+        Color value. (dtype: numpy.float, axis: (C), order: RGB).
+    """
     # following to https://github.com/gulvarol/surreal/blob/master/demo/segmColorMap.m
     SEGM_PART_COLORS = [
         # {{{
