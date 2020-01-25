@@ -1,3 +1,0 @@
-[submodule "src/evaluation"]
-	path = src/evaluation
-	url = https://github.com/raahii/video-gans-evaluation.git

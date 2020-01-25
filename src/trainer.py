@@ -12,10 +12,9 @@ import torch.optim as optim
 from torch import nn
 
 import dataio
+import evan
 import util
 from dataset import VideoDataLoader
-from evaluation import compute_conv_features
-from evaluation import evaluate as eval_framework
 from generator import ColorVideoGenerator, GeometricVideoGenerator
 from logger import Logger, MetricType
 from loss import Loss
@@ -182,18 +181,6 @@ class Trainer(object):
         cgen : nn.Module
             The color video generator.
         """
-        # directory contains all color videos (.mp4) of the dataset
-        dataset_dir = Path(self.dataloader.dataset.root_path) / "color"
-        if not (
-            (dataset_dir / "features.npy").exists()
-            and (dataset_dir / "probs.npy").exists()
-        ):
-            # convert to convolutional features with inpception model
-            f, p = compute_conv_features.convert(
-                self.eval_batchsize, dataset_dir, n_workers=8
-            )
-            compute_conv_features.save(f, p, dataset_dir)
-
         # generate fake samples
         _, xc = util.generate_samples(
             ggen,
@@ -209,21 +196,20 @@ class Trainer(object):
         # save them in a temporary directory
         temp = tempfile.TemporaryDirectory()
         temp_dir = Path(temp.name)
-        samples_dir = temp_dir / "samples"
-        samples_dir.mkdir()
-        save_paths = [samples_dir / f"{i}.mp4" for i in range(self.eval_num_samples)]
+        save_paths = [temp_dir / f"{i}.mp4" for i in range(self.eval_num_samples)]
         dataio.write_videos_pararell(xc, save_paths)
 
-        # convert to convolutional features with inpception model
-        f, p = compute_conv_features.convert(
-            self.eval_batchsize, samples_dir, n_workers=8
-        )
-        compute_conv_features.save(f, p, temp_dir)
-
+        # dataset directory
+        dataset_dir = Path(self.dataloader.dataset.root_path) / "color"
         for m in self.eval_metrics:
-            # calculate the score
-            r = eval_framework.compute_metric(m, [temp_dir, dataset_dir])
-            self.logger.update(m, r["score"])
+            if m == "is":
+                score = evan.score.compute_inception_score(temp_dir)
+            elif m == "fid":
+                score = evan.score.compute_frechet_distance(temp_dir, dataset_dir)
+            elif m == "prd":
+                score = evan.score.compute_precision_recall(temp_dir, dataset_dir)
+
+            self.logger.update(m, score)
 
         temp.cleanup()
         ggen, cgen = ggen.to(self.device), cgen.to(self.device)
@@ -268,8 +254,8 @@ class Trainer(object):
         self.logger.debug(f"metrics: {self.eval_metrics}", 1)
         self.logger.debug("(start training)")
 
-        self.log_samples(ggen, cgen, 0)
-        self.evaluate(ggen, cgen)
+        # self.log_samples(ggen, cgen, 0)
+        # self.evaluate(ggen, cgen)
         self.logger.print_header()
         for i in range(self.configs["n_epochs"]):
             self.epoch += 1

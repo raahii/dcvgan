@@ -1,5 +1,6 @@
 src/evaluation/figs
 src/evaluation/result
+src/evaluation/weights
 data
 result
 deploy.sh
