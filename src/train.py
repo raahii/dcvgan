@@ -143,7 +143,15 @@ def main():
         configs["vdis"]["noise_sigma"],
         configs["vdis"]["ndf"],
     )
-    models = {"ggen": ggen, "cgen": cgen, "idis": idis, "vdis": vdis}
+
+    gdis = GradientDiscriminator(
+        ggen.channel,
+        cgen.channel,
+        configs["gdis"]["use_noise"],
+        configs["gdis"]["noise_sigma"],
+        configs["gdis"]["ndf"],
+    )
+    models = {"ggen": ggen, "cgen": cgen, "idis": idis, "vdis": vdis, "gdis": gdis}
 
     logger.debug("(models)")
     for m in models.values():

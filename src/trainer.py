@@ -95,7 +95,7 @@ class Trainer(object):
             if type(item) != dict:
                 return {key: str(item)}
 
-            _dict = {}
+            _dict: Dict[str, Any] = {}
             for k, v in item.items():
                 if key == "":
                     _dict = dict(_dict, **flat(v, k))
@@ -230,18 +230,22 @@ class Trainer(object):
         # retrieve models and move them if necessary
         ggen, cgen = self.models["ggen"], self.models["cgen"]
         idis, vdis = self.models["idis"], self.models["vdis"]
+        gdis = self.models["gdis"]
 
         ggen, cgen = ggen.to(self.device), cgen.to(self.device)
         idis, vdis = idis.to(self.device), vdis.to(self.device)
+        gdis = gdis.to(self.device)
 
         # optimizers
         opt_ggen, opt_cgen = self.optimizers["ggen"], self.optimizers["cgen"]
         opt_idis, opt_vdis = self.optimizers["idis"], self.optimizers["vdis"]
+        (opt_gdis,) = self.optimizers["gdis"]
 
         # define metrics
         self.logger.define("loss_gen", MetricType.Loss)
         self.logger.define("loss_idis", MetricType.Loss)
         self.logger.define("loss_vdis", MetricType.Loss)
+        self.logger.define("loss_gdis", MetricType.Loss)
         for m in self.configs["evaluation"]["metrics"]:
             self.logger.define(m, MetricType.Float)
 
@@ -277,8 +281,10 @@ class Trainer(object):
                 # --------------------
                 idis.train()
                 vdis.train()
+                gdis.train()
                 idis.zero_grad()
                 vdis.zero_grad()
+                gdis.zero_grad()
 
                 # real batch
                 xc_real = batch["color"]
@@ -289,6 +295,7 @@ class Trainer(object):
 
                 y_real_i = idis(xg_real[:, :, tg_rand], xc_real[:, :, tc_rand])
                 y_real_v = vdis(xg_real, xc_real)
+                y_real_g = gdis(xg_real, xc_real)
 
                 # fake batch
                 xg_fake = ggen.sample_videos(self.configs["batchsize"])
@@ -296,26 +303,31 @@ class Trainer(object):
 
                 y_fake_i = idis(xg_fake[:, :, tg_rand], xc_fake[:, :, tc_rand])
                 y_fake_v = vdis(xg_fake, xc_fake)
+                y_fake_g = gdis(xg_fake, xc_fake)
 
                 # compute loss
                 loss_idis = self.loss.compute_dis_loss(y_real_i, y_fake_i)
                 loss_vdis = self.loss.compute_dis_loss(y_real_v, y_fake_v)
-                loss_dis = loss_idis + loss_vdis
+                loss_gdis = self.loss.compute_dis_loss(y_real_g, y_fake_g)
+                loss_dis = loss_idis + loss_vdis + loss_gdis
 
                 # update weights
                 if self.iteration % self.configs["num_gen_update"] == 0:
                     loss_dis.backward()
                     opt_idis.step()
                     opt_vdis.step()
+                    opt_gdis.step()
                 else:
                     loss_dis.detach_()
 
                 self.logger.update("loss_idis", loss_idis.cpu().item())
                 self.logger.update("loss_vdis", loss_vdis.cpu().item())
+                self.logger.update("loss_gdis", loss_gdis.cpu().item())
 
                 # free grads
                 y_fake_i.detach()
                 y_fake_v.detach()
+                y_fake_g.detach()
 
                 # --------------------
                 # phase generator
@@ -331,15 +343,17 @@ class Trainer(object):
 
                 y_fake_i = idis(xg_fake[:, :, tg_rand], xc_fake[:, :, tc_rand])
                 y_fake_v = vdis(xg_fake, xc_fake)
+                y_fake_g = gdis(xg_fake, xc_fake)
 
                 # compute loss
-                loss_gen = self.loss.compute_gen_loss(y_fake_i, y_fake_v)
+                loss_gen = self.loss.compute_gen_loss(y_fake_i, y_fake_v, y_fake_g)
 
                 # update weights
                 if self.iteration % self.configs["num_dis_update"] == 0:
                     loss_gen.backward()
                     opt_ggen.step()
                     opt_cgen.step()
+                    opt_ggen.step()
                 else:
                     loss_gen.detach_()
 
@@ -348,6 +362,7 @@ class Trainer(object):
                 # free grads
                 y_real_i.detach()
                 y_real_v.detach()
+                y_real_g.detach()
 
                 # --------------------
                 # others
