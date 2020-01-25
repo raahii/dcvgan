@@ -97,14 +97,9 @@ def preprocess_isogd_dataset(
 
         # resize
         resize_to = (img_size, img_size)
-        color_video = dataio.resize_video(img, resize_to)
-        depth_video = dataio.resize_video(img, resize_to, "nearest")
-        flow_video = dataio.resize_vide(img, resize_to, "nearest")
-
-        color_video = np.stack(color_video)
-        depth_video = np.stack(depth_video)
-        depth_video = depth_video[..., 0]  # save as grayscale image
-        flow_video = np.stack(flow_video)
+        color_video = dataio.resize_video(color_video, resize_to)
+        depth_video = dataio.resize_video(depth_video, resize_to, "nearest")
+        flow_video = dataio.resize_vide(flow_video, resize_to, "nearest")
 
         # for dataset
         name = "{}_{}_{}".format(
