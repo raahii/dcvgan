@@ -10,6 +10,6 @@ data/raw/*
 data/processed/*
 !data/processed/mock
 result/*
-notebook
-src/script
+src/script/
+src/notebook/.ipynb_checkpoints
 !.gitkeep
