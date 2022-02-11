@@ -15,7 +15,7 @@ scikit-video
 torch==1.2.0
 torchvision
 
-protobuf==3.9.1
+protobuf==3.15.0
 tensorboard
 tensorboardX
 moviepy
